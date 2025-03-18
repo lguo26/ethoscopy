@@ -402,11 +402,11 @@ def stimulus_response(data: pd.DataFrame,
             response_dict['has_walked'] = response_data['has_walked'][response_data['has_responded'] == True].iloc[0]
             response_dict['t_rel'] = response_data['t_rel'][response_data['has_responded'] == True].iloc[0]
             response_dict['response_velocity'] = response_data['velocity'][response_data['has_responded'] == True].iloc[0]
-            response_dict.pop('int_id')
+            del response_dict['int_id']
             response_rows.append(response_dict)
         else:
             response_dict = response_data[response_data['t_rel'] == 0].to_dict('records')[0]
-            response_dict.pop('int_id')
+            del response_dict['int_id']
             response_rows.append(response_dict)
 
     df.groupby('int_id').apply(find_interactions)
