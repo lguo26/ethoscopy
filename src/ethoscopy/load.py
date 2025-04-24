@@ -15,18 +15,26 @@ pd.options.mode.chained_assignment = None
 
 def download_from_remote_dir(meta, remote_dir, local_dir):
     """ 
-    This function is used to import data from the ethoscope node platform to your local directory for later use. The ethoscope files must be saved on a
-    remote FTP server and saved as .db files, see the Ethoscope manual for how to setup a node correctly
-    https://www.notion.so/giorgiogilestro/Ethoscope-User-Manual-a9739373ae9f4840aa45b277f2f0e3a7
+    Download ethoscope data from a remote FTP server to a local directory.
     
+    Imports data from the ethoscope node platform to your local directory for later use. The ethoscope files 
+    must be saved on a remote FTP server as .db files. See the Ethoscope manual for node setup instructions:
+    https://www.notion.so/giorgiogilestro/Ethoscope-User-Manual-a9739373ae9f4840aa45b277f2f0e3a7
+
     Args:
-        meta (str): The path to a csv file containing columns with machine_name, date, and time if multiple files on the same day
-        remote_dir (str): The url containing the location of the ftp server up to the folder contain the machine id's, server must not have a username or password (anonymous login)
+        meta (str): Path to a CSV file containing columns with machine_name, date, and time (if multiple files on the same day)
+        remote_dir (str): URL of the FTP server up to the folder containing machine IDs. Server must allow anonymous login.
             e.g. 'ftp://YOUR_SERVER//auto_generated_data//ethoscope_results'
-        local_dir (str): The path of the local directory to save .db files to, files will be saved using the structure of the ftp server
+        local_dir (str): Path to the local directory for saving .db files. Files will be saved using the FTP server's structure.
             e.g. 'C:\\Users\\YOUR_NAME\\Documents\\ethoscope_databases'
 
-    returns None
+    Returns:
+        None
+    
+    Raises:
+        FileNotFoundError: If the metadata file cannot be found or read
+        KeyError: If required columns are missing from metadata
+        RuntimeError: If no ethoscope data could be found
     """
     meta = Path(meta)
     local_dir = Path(local_dir)
@@ -134,16 +142,21 @@ def download_from_remote_dir(meta, remote_dir, local_dir):
 
     def download_database(remote_dir, folders, work_dir, local_dir, file_name, file_size):
         """ 
-        Connects to remote FTP server and saves to designated local path, retains file name and path directory structure 
+        Download a database file from an FTP server to a local directory.
         
-        Params:
-        @remote_dir = ftp server netloc 
-        @work_dir = ftp server path
-        @local_dir = local directory path for the file and subsequent directory structure to be saved to
-        @file_name = name of .db file to be download
-        @file_size = size of file above in bytes
+        Connects to remote FTP server and saves to designated local path, retaining file name 
+        and path directory structure.
 
-        returns None
+        Args:
+            remote_dir (str): FTP server netloc
+            folders (str): Base path on the FTP server
+            work_dir (PurePosixPath): Specific directory path on the FTP server
+            local_dir (Path): Local directory path for saving the file and directory structure
+            file_name (str): Name of the .db file to download
+            file_size (int): Size of the file in bytes
+
+        Returns:
+            None
         """
         
         #create local copy of directory tree from ftp server
@@ -211,14 +224,26 @@ def download_from_remote_dir(meta, remote_dir, local_dir):
 
 def link_meta_index(metadata, local_dir):
     """ 
-    A function to alter the provided metadata file with the path locations of downloaded .db files from the Ethoscope experimental system. The function will check all unique machines against the original ftp server 
-    for any errors. Errors will be omitted from the returned metadata table without warning.
+    Link metadata with downloaded ethoscope database file paths.
+    
+    Alters the provided metadata file with the path locations of downloaded .db files from the Ethoscope 
+    experimental system. Checks all unique machines for errors, which are omitted from the returned 
+    metadata table without warning.
 
-        Args:
-            metadata (str): The path to a file containing the metadata information of each ROI to be downloaded, must include'ETHOSCOPE_NAME', 'date' in yyyy-mm-dd format or others (see validate_datetime), and 'region_id'
-            local_dir (str): The path to the top level parent directory where saved database files are located.
+    Args:
+        metadata (str): Path to a file containing metadata information for each ROI to be downloaded. 
+            Must include 'machine_name', 'date' (in yyyy-mm-dd format or other formats supported by 
+            validate_datetime), and 'region_id'.
+        local_dir (str): Path to the top level parent directory where saved database files are located.
 
-    returns a pandas dataframe containing the csv file information and corresponding path for each entry in the csv 
+    Returns:
+        pd.DataFrame: DataFrame containing the CSV file information and corresponding path for each entry
+    
+    Raises:
+        FileNotFoundError: If the metadata file cannot be found or read
+        ValueError: If the metadata contains NaN values
+        KeyError: If required columns are missing from metadata
+        RuntimeError: If no ethoscope data could be found
     """
     metadata = Path(metadata)
     local_dir = Path(local_dir)
@@ -336,21 +361,25 @@ def link_meta_index(metadata, local_dir):
 
 def load_ethoscope(metadata, min_time = 0 , max_time = float('inf'), reference_hour = None, cache = None, FUN = None, verbose = True):
     """
-    The users function to iterate through the dataframe generated by link_meta_index() and load the corresponding database files 
-    and analyse them according to the inputted function.
+    Load and process ethoscope data from database files.
+    
+    Iterates through the dataframe generated by link_meta_index() to load the corresponding database files 
+    and analyze them according to the provided function.
 
-        Args:
-            metadata (pd.DataFrame): The metadata datafframe as returned from link_meta_index function
-            min_time (int): The minimum time you want to load data from with 0 being the experiment start (in hours), for all experiments. Default is 0.
-            max_time (int): Same as above, but for the maximum time you want to load to. Default is infinity.
-            reference_hour (int): The hour at which lights on occurs when the experiment is begun, or when you want the timestamps to equal 0. None equals the start of the experiment. Default is None.
-            cache (str): The local path to find and store cached versions of each ROI per database. Directory tree structure is a mirror of ethoscope saved data. Cached files are in a pickle format. Default is None.
-            FUN (function): A function to apply indiviual curatation to each ROI, typically using package generated functions (i.e. sleep_annotation). If using a user defined function use the package analyse functions as examples. 
-                If None the data remains as found in the database. Default is None.
-            verbose (bool): If True (defualt) then the function prints to screen information about each ROI when loading, if False no printing to screen occurs. Default is True.
+    Args:
+        metadata (pd.DataFrame): Metadata dataframe as returned from link_meta_index function
+        min_time (int, optional): Minimum time to load data from, with 0 being experiment start (in hours). Default is 0.
+        max_time (int, optional): Maximum time to load data to (in hours). Default is infinity.
+        reference_hour (int, optional): Hour at which lights on occurs or when timestamps should equal 0. 
+            None equals the start of the experiment. Default is None.
+        cache (str, optional): Local path to find and store cached versions of each ROI per database. 
+            Directory structure mirrors ethoscope saved data. Cached files are in pickle format. Default is None.
+        FUN (callable, optional): Function to apply individual curation to each ROI, typically using package 
+            generated functions (e.g., sleep_annotation). If None, data remains as found in the database. Default is None.
+        verbose (bool, optional): If True, prints information about each ROI when loading. Default is True.
 
-    returns: 
-        A pandas DataFrame object containing the database data and unique ids per fly as the index
+    Returns:
+        pd.DataFrame: DataFrame containing the database data with unique IDs per fly as the index
     """  
 
     max_time = max_time * 60 * 60
@@ -393,16 +422,32 @@ def load_ethoscope(metadata, min_time = 0 , max_time = float('inf'), reference_h
 
 def load_ethoscope_metadata(metadata):
     """
-    A function to scrape the metadata table of each ethoscope in the generated metadata file.
+    Extract metadata from ethoscope database files.
+    
+    Scrapes the metadata table of each ethoscope in the generated metadata file to provide 
+    experiment-level information.
 
-        Args:
-            metadata (pd.DataFrame): The metadata datafframe as returned from link_meta_index function
+    Args:
+        metadata (pd.DataFrame): Metadata dataframe as returned from link_meta_index function
 
-    returns: 
-        A pandas DataFrame object containing the metadata as provided from the METADATA table in each ethoscope db table
+    Returns:
+        pd.DataFrame: DataFrame containing the metadata from the METADATA table in each ethoscope database,
+            with machine_id as the index
     """  
 
     def get_meta(path):
+        """
+        Extract and process metadata from an ethoscope database file.
+        
+        Retrieves metadata from the METADATA table and processes it into a structured dictionary
+        containing experiment information, hardware details, and configuration options.
+
+        Args:
+            path (str): Path to the ethoscope database file
+
+        Returns:
+            dict: Dictionary containing processed metadata from the database
+        """
         try:
             conn = sqlite3.connect(path)
 
@@ -461,17 +506,25 @@ def load_ethoscope_metadata(metadata):
 
 def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour = None, cache = None):
     """
-    Loads the data from a single region from an ethoscope according to inputted times
-    changes time to reference hour and applies any functions added
+    Load data from a single region of interest (ROI) from an ethoscope database.
     
-    Params: 
-    @ file = row in a metadata pd.DataFrane containing a column 'path' with .db file Location
-    @ min_time = time constraint with which to query database (in hours), default is 0
-    @ max_time = same as above
-    @ reference_hour = the time in hours when the light begins in the experiment, i.e. the beginning of a 24 hour session
-    @ cache = if not None provide path for folder with saved caches or folder to be saved to
+    Extracts tracking data for a specific ROI according to time constraints, adjusts timestamps 
+    based on reference hour, and handles data caching.
+
+    Args:
+        file (pd.Series): Row in a metadata DataFrame containing a column 'path' with .db file location
+        min_time (int, optional): Minimum time to load data from (in hours). Default is 0.
+        max_time (int, optional): Maximum time to load data to (in hours). Default is infinity.
+        reference_hour (int, optional): Time in hours when light begins in the experiment, used to 
+            adjust timestamps. None means timestamps start from experiment beginning. Default is None.
+        cache (str, optional): Path for folder with saved caches or folder to save to. Default is None.
     
-    returns a pandas dataframe containing raw ethoscope dataframe
+    Returns:
+        Optional[pd.DataFrame]: DataFrame containing raw ethoscope data for the specified ROI,
+            or None if the ROI could not be loaded
+    
+    Raises:
+        ValueError: If min_time is larger than max_time
     """
 
     if min_time > max_time:

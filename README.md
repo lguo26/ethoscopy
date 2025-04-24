@@ -17,7 +17,7 @@ Ethoscopy contains methods to perform common analytical techniques per specimen 
 
 This new update sees a whole refactoring of the code base to make everything more streamline and keep the package up to date with the new versions of pandas and numpy. Gone are seperate classes for periodograms and HMM based analysis, all are under one class behavpy(). Addtioanlly, now the user can choose between plotter packages, Seaborn and Plotly, and choose a desired colour pallete. The previous used package Plotly can balloon the size of jupyter notebooks, putting a strain on storage, despite being great for data exploration. If you just want static plots, use Seaborn. But be wary of comparison, the backend for Plotly plots is all calculated in ethoscopy applying z-score and bootstrapping to quantification plots, whereas Seaborn based plots will use the Seaborn internal tools for errors and averaging.
 
-The latest update is backwards compatible with all previously saved behavpy dataframes. However, post loading they should be re-initiated as the new behavpy class. 
+The latest update is backwards compatible with all previously saved behavpy dataframes. However, post loading they should be re-initiated as the new behavpy class. See in the getting started a demonstration of what to do.
 
 Addtionally, the concat method ( behavpy_object.concat() ) for combining dataframes has been shifted to a function that is imported automatically. Call etho.concat(df1, df2) or etho.concat(*[df1, df2]) instead. There are other minor changes to method and argument names, which are reflected in their docstrings and in the tutorial. 
 
@@ -51,6 +51,14 @@ df = etho.behavpy(data, metadata, check = True, canvas = 'plotly', palette = 'Se
 filtered_df = df.xmv('experimental_column', 'group_2')
 ```
 
+Loading and re-initialising old data (saved pre 2.0)
+```bash
+import ethoscopy as etho
+import pandas as pd
+
+df = pd.read_pickle('path/to/your/file.pkl')
+df = etho.behavpy(df, df.meta, check = True, canvas = 'plotly', palette = 'Set2')
+```
 ## License
 
 This project is licensed under the [GNU-3 license](LICENSE)
