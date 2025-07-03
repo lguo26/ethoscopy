@@ -11,12 +11,12 @@ services:
     ports:
       - 8082:8000
     volumes:
-      - /mnt/data/results:/mnt/ethoscope_results:ro
-      - /mnt/data/ethoscope_metadata:/opt/ethoscope_metadata
-      - /mnt/homes:/home
-      - /mnt/cache:/home/cache
-      - ./jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
-    user: "gg:users" # Make sure this matches the permissions of your /mnt/{homes,cache} folder
+      - /mnt/ethoscope_data/results:/mnt/ethoscope_results:ro
+      - /mnt/ethoscope_data/ethoscope_metadata:/opt/ethoscope_metadata
+      - /mnt/ethoscopy/homes:/home
+      - /mnt/ethoscopy/cache:/home/cache
+      - ./jupyterhub_data:/srv/jupyterhub/
+    user: "${UID:-1000}:${GID:-1000}" # Adjust to your own user. Make sure this matches the permissions of your /mnt/{homes,cache} folder
     restart: always
     deploy:
       resources:
