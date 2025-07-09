@@ -565,7 +565,21 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
         data = pd.read_sql_query(sql_query, conn)
         
         if 'id' in data.columns:
-            data = data.drop(columns = ['id'])
+            # Check if 'id' is a primary key (new format) or not (old format)
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info(ROI_{file['region_id']})")
+            columns = cursor.fetchall()
+            
+            is_primary_key = False
+            for column in columns:
+                if column[1] == 'id' and column[5] == 1:  # column[5] is the pk flag
+                    is_primary_key = True
+                    break
+            
+            if not is_primary_key:
+                # Old format - drop the id column to avoid conflicts
+                data = data.drop(columns = ['id'])
+            # New format - keep the id column as it's a meaningful primary key
 
         if reference_hour != None:
             t = date
@@ -584,7 +598,7 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
                 data[var_n] = data[var_n] / roi_width
 
         if 'is_inferred' and 'has_interacted' in data.columns:
-            data = data[(data['is_inferred'] == False) | (data['has_interacted'] == True)]
+            data = data[(data['is_inferred'] == 0) | (data['is_inferred'] == '0') | (data['has_interacted'] == 1)]
             # check if has_interacted is all false / 0, drop if so
             interacted_list = data['has_interacted'].to_numpy()
             if (0 == interacted_list[:]).all() == True:
@@ -592,7 +606,7 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
                 # data = data.drop(columns = ['is_inferred'])
         
         elif 'is_inferred' in data.columns:
-            data = data[data['is_inferred'] == False]
+            data = data[(data['is_inferred'] == 0) | (data['is_inferred'] == '0')]
             data = data.drop(columns = ['is_inferred'])
 
         if cache is not None:
