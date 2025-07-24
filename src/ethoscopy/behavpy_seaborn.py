@@ -1093,7 +1093,7 @@ class behavpy_seaborn(behavpy_draw):
         return fig
 
     def plot_response_overtime(self, t_bin_hours:int = 1, wrapped:bool = False, response_col:str = 'has_responded', interaction_id_col:str = 'has_interacted', facet_col:None|str = None, facet_arg:None|str = None, 
-        facet_labels:None|str = None, day_length:int = 24, lights_off:int = 12, func:str = 'mean', t_column:str = 't', title:str = '', grids:bool = False, figsize:tuple = (0,0)):
+        facet_labels:None|str = None, avg_window:int = 5, day_length:int = 24, lights_off:int = 12, func:str = 'mean', t_column:str = 't', title:str = '', grids:bool = False, figsize:tuple = (0,0)):
         """ 
         Generate a plot which shows how the response response rate changes over a day (wrapped) or the course of the experiment.
         If false stimuli are given and represented in the interaction_id column, they will be plotted seperately in grey.
@@ -1108,6 +1108,7 @@ class behavpy_seaborn(behavpy_draw):
                 facet_arg (list, optional): The arguments to use for faceting. If None then all distinct groups will be used. Default is None.
                 facet_labels (list, optional): The labels to use for faceting, these will be what appear on the plot. 
                     If None the labels will be those from the metadata. Default is None.
+                avg_window (int, optional): The number of minutes applied to the rolling smoothing function. Defaults to `5`.
                 day_length (int, optional): The lenght in hours the experimental day is. Default is 24.
                 lights_off (int, optional): The time point when the lights are turned off in an experimental day, assuming 0 is lights on. 
                     Must be number between 0 and day_lenght. Default is 12.
@@ -1128,8 +1129,8 @@ class behavpy_seaborn(behavpy_draw):
                                                 facet_col=facet_col, facet_arg=facet_arg, facet_labels=facet_labels, func=func, t_column=t_column)
 
         return df.plot_overtime(variable='Response Rate', wrapped=wrapped, facet_col='new_facet', facet_arg=h_order, facet_labels=h_order,
-                                avg_window=5, day_length=day_length, lights_off=lights_off, title=title, grids=grids, t_column='t_bin', 
-                                col_list = palette, figsize=(0,0))
+                                avg_window=avg_window, day_length=day_length, lights_off=lights_off, title=title, grids=grids, t_column='t_bin', 
+                                col_list = palette, figsize=figsize)
 
     # Seaborn Periodograms
 

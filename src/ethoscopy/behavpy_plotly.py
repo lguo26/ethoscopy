@@ -1289,7 +1289,7 @@ class behavpy_plotly(behavpy_draw):
         return fig
 
     def plot_response_overtime(self, t_bin_hours:int = 1, wrapped:bool = False, response_col:str = 'has_responded', interaction_id_col:str = 'has_interacted', 
-        facet_col:None|str = None, facet_arg:None|list = None, facet_labels:None|list = None, day_length:int = 24, lights_off:int = 12, func:str = 'mean', 
+        facet_col:None|str = None, facet_arg:None|list = None, facet_labels:None|list = None, avg_window:int = 5, day_length:int = 24, lights_off:int = 12, func:str = 'mean', 
         t_column:str = 't', title:str = '', grids:bool = False):
         """ 
         A plotting function for AGO or mAGO datasets that have been loaded with the analysing function stimulus_response.
@@ -1306,6 +1306,7 @@ class behavpy_plotly(behavpy_draw):
                 facet_arg (list, optional): The arguments to use for faceting. If None then all distinct groups will be used. Default is None.
                 facet_labels (list, optional): The labels to use for faceting, these will be what appear on the plot. 
                     If None the labels will be those from the metadata. Default is None.
+                avg_window (int, optional): The number of minutes applied to the rolling smoothing function. Defaults to `5`.
                 day_length (int, optional): The lenght in hours the experimental day is. Default is 24.
                 lights_off (int, optional): The time point when the lights are turned off in an experimental day, assuming 0 is lights on. 
                     Must be number between 0 and day_lenght. Default is 12.
@@ -1325,7 +1326,7 @@ class behavpy_plotly(behavpy_draw):
                                                 facet_col=facet_col, facet_arg=facet_arg, facet_labels=facet_labels, func=func, t_column=t_column)
 
         return df.plot_overtime(variable='Response Rate', wrapped=wrapped, facet_col='new_facet', facet_arg=h_order, facet_labels=h_order,
-                                avg_window=5, day_length=day_length, lights_off=lights_off, title=title, grids=grids, t_column='t_bin', 
+                                avg_window=avg_window, day_length=day_length, lights_off=lights_off, title=title, grids=grids, t_column='t_bin', 
                                 col_list = palette)
 
     # Possibly add the puff count on the secondary access in the future 
@@ -1671,7 +1672,7 @@ class behavpy_plotly(behavpy_draw):
                 t_bin (int, optional): The time in seconds you want to bin the movement data to. Default is 60 or 1 minute
                 func (str, optional): When binning to the above what function should be applied to the grouped data. 
                     Default is "max" as is necessary for the "moving" variable
-                avg_window (int, optioanl): The window in minutes you want the moving average to be applied to. Default is 30 mins
+                avg_window (int, optioanl): The window in minutes you want the moving average to be applied to. Default is '30'.
                 day_length (int, optional): The lenght in hours the experimental day is. Default is 24.
                 lights_off (int, optional): The time point when the lights are turned off in an experimental day, assuming 0 is lights on. 
                     Must be number between 0 and day_lenght. Default is 12.
