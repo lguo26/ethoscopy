@@ -419,9 +419,12 @@ def load_ethoscope(metadata, min_time = 0 , max_time = float('inf'), reference_h
                 # Replace existing id with the one from metadata for consistency
                 roi_1['id'] = metadata['id'].iloc[i]
             data = pd.concat([data, roi_1], ignore_index= True)
-        except:
+        except Exception as e:
             if verbose is True:
-                print('ROI_{} from {} was unable to load due to an error loading roi'.format(metadata['region_id'].iloc[i], metadata['machine_name'].iloc[i]))
+                print('ROI_{} from {} was unable to load due to an error loading roi: {}'.format(metadata['region_id'].iloc[i], metadata['machine_name'].iloc[i], str(e)))
+                import traceback
+                print("Full traceback:")
+                traceback.print_exc()
             continue
 
     return data
@@ -546,13 +549,28 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
     try:
         conn = sqlite3.connect(file['path'])
 
+        # Check if database file is accessible and contains expected tables
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        required_tables = ['ROI_MAP', 'VAR_MAP', 'METADATA']
+        missing_tables = [table for table in required_tables if table not in tables]
+        if missing_tables:
+            raise ValueError(f"Database missing required tables: {missing_tables}")
+
         roi_df = pd.read_sql_query('SELECT * FROM ROI_MAP', conn)
         
         roi_row = roi_df[roi_df['roi_idx'] == file['region_id']]
 
         if len(roi_row.index) < 1:
-            print('ROI {} does not exist, skipping'.format(file['region_id']))
-            return None
+            available_rois = roi_df['roi_idx'].tolist()
+            raise ValueError(f'ROI {file["region_id"]} does not exist. Available ROIs: {available_rois}')
+
+        # Check if ROI table exists
+        roi_table_name = f'ROI_{file["region_id"]}'
+        if roi_table_name not in tables:
+            raise ValueError(f'ROI table {roi_table_name} does not exist in database')
 
         var_df = pd.read_sql_query('SELECT * FROM VAR_MAP', conn)
         date = pd.read_sql_query('SELECT value FROM METADATA WHERE field = "date_time"', conn)
@@ -620,5 +638,14 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
 
         return data
 
+    except sqlite3.Error as e:
+        raise sqlite3.Error(f"Database error for file {file['path']}: {str(e)}")
+    except pd.errors.DatabaseError as e:
+        raise pd.errors.DatabaseError(f"Pandas database error for file {file['path']}: {str(e)}")
+    except KeyError as e:
+        raise KeyError(f"Missing required column in file {file['path']}: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Unexpected error processing file {file['path']}: {str(e)}")
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
