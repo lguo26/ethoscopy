@@ -411,7 +411,13 @@ def load_ethoscope(metadata, min_time = 0 , max_time = float('inf'), reference_h
                 if verbose is True:
                     print('ROI_{} from {} was unable to load due to an error in applying the function'.format(metadata['region_id'].iloc[i], metadata['machine_name'].iloc[i]))
                 continue
-            roi_1.insert(0, 'id', metadata['id'].iloc[i])
+            
+            # Check if 'id' column already exists, if not insert it
+            if 'id' not in roi_1.columns:
+                roi_1.insert(0, 'id', metadata['id'].iloc[i])
+            else:
+                # Replace existing id with the one from metadata for consistency
+                roi_1['id'] = metadata['id'].iloc[i]
             data = pd.concat([data, roi_1], ignore_index= True)
         except:
             if verbose is True:
