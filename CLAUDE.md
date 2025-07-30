@@ -10,7 +10,7 @@ Ethoscopy is a Python data analysis toolbox for behavioral time series data from
 
 ### Python Environment
 - **Use Python 3.10+** (project requires >=3.10,<4.0)
-- **Always use virtual environment** (`venv_linux` as mentioned in user's global instructions)
+- **Always use virtual environment** (`.venv` as mentioned in user's global instructions)
 - **Install in development mode**: `pip install -e .`
 
 ### Package Management

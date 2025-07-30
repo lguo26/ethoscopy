@@ -59,6 +59,41 @@ import pandas as pd
 df = pd.read_pickle('path/to/your/file.pkl')
 df = etho.behavpy(df, df.meta, check = True, canvas = 'plotly', palette = 'Set2')
 ```
+
+## Development and Testing
+
+Ethoscopy includes a comprehensive test suite to ensure code reliability and prevent regressions.
+
+### Running Tests
+
+Install development dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+Run all tests:
+```bash
+pytest
+```
+
+Run tests with coverage:
+```bash
+pytest --cov=ethoscopy --cov-report=term-missing
+```
+
+Or use the convenience script:
+```bash
+python run_tests.py
+```
+
+### Test Categories
+
+- **Unit tests**: Fast tests for individual functions (`pytest -m unit`)
+- **Integration tests**: Workflow testing (`pytest -m integration`)
+- **Performance tests**: Long-running tests (`pytest -m slow`)
+
+For detailed testing information, see [TESTING.md](TESTING.md).
+
 ## License
 
 This project is licensed under the [GNU-3 license](LICENSE)
