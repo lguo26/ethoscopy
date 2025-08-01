@@ -1,9 +1,10 @@
 # ethoscopy 
 
-[![CI/CD Pipeline](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml/badge.svg)](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/gilestrolab/ethoscopy/branch/main/graph/badge.svg)](https://codecov.io/gh/gilestrolab/ethoscopy)
-[![PyPI version](https://badge.fury.io/py/ethoscopy.svg)](https://badge.fury.io/py/ethoscopy)
+[![CI/CD Pipeline](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/gilestrolab/ethoscopy/graph/badge.svg?token=8f3c15f3-f411-4897-b49a-c079e86a23b5)](https://codecov.io/gh/gilestrolab/ethoscopy)
+[![PyPI version](https://img.shields.io/pypi/v/ethoscopy.svg)](https://pypi.org/project/ethoscopy/)
 [![Python versions](https://img.shields.io/pypi/pyversions/ethoscopy.svg)](https://pypi.org/project/ethoscopy/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A data-analysis toolbox utilising Pandas, Seaborn, and Plotly to curate, clean, analyse, and visualise behavioural time series data. Whilst the toolbix was created around the data produced from an Ethoscope (a Drosophila monitoring system), if the users data follows the same structure for time series data all methods can be utilised.
 
