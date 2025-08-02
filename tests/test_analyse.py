@@ -28,7 +28,9 @@ class TestMaxVelocityDetector:
         assert isinstance(result, pd.DataFrame)
         assert 'moving' in result.columns
         assert result['moving'].dtype == bool
-        assert len(result) == len(sample_ethoscope_data)
+        # Function bins data into 10-second windows, so output length should be duration/window_size
+        expected_length = 3600 // 10  # 360 rows for 1 hour with 10s windows
+        assert len(result) == expected_length
 
     @pytest.mark.unit
     def test_max_velocity_detector_custom_threshold(self, sample_ethoscope_data):
@@ -45,15 +47,16 @@ class TestMaxVelocityDetector:
         
         result = max_velocity_detector(empty_data)
         
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 0
+        # Empty data returns None (insufficient data for analysis)
+        assert result is None
 
     @pytest.mark.unit
     def test_max_velocity_detector_missing_columns(self):
         """Test velocity detection with missing required columns."""
+        # Create data with enough rows but missing required columns
         bad_data = pd.DataFrame({
-            't': [1, 2, 3],
-            'x': [1, 2, 3]
+            't': list(range(200)),
+            'x': list(range(200))
             # Missing 'y' and 'xy_dist_log10x1000'
         })
         

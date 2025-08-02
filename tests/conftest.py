@@ -53,7 +53,7 @@ def sample_ethoscope_data():
         pd.DataFrame: Sample tracking data
     """
     np.random.seed(42)  # For reproducible tests
-    n_points = 1000
+    n_points = 7200  # Increase density to ~2 points/second for 1 hour
     
     data = pd.DataFrame({
         'id': [1] * n_points,
