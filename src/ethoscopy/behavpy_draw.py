@@ -247,7 +247,7 @@ class behavpy_draw(behavpy_core):
                 mean = np.mean(zlist)
                 median = np.median(zlist)
 
-                if min_max == True:
+                if min_max:
                     q3 = np.max(array)
                     q1 = np.min(array)
 
@@ -273,7 +273,7 @@ class behavpy_draw(behavpy_core):
         """ Convert RGB colors to hex codes """
         try:
             return [Color(rgb = tuple(np.array(eval(col[3:])) / 255)) for col in lst]
-        except:
+        except (ValueError, SyntaxError, TypeError):
             return lst
 
     def _get_colours(self, plot_list):
@@ -534,7 +534,7 @@ class behavpy_draw(behavpy_core):
 
         name, col = self._check_grey(name, col)
 
-        if avg_win  != False:
+        if avg_win:
             rolling_col = data.groupby(data.index, sort = False)[var].rolling(avg_win, min_periods = 1).mean().reset_index(level = 0, drop = True)
             data['rolling'] = rolling_col.to_numpy()
             # removing dropna to speed it up
@@ -542,7 +542,7 @@ class behavpy_draw(behavpy_core):
         else:
             data = data.rename(columns={var: 'rolling'})
 
-        if day_len != False:
+        if day_len:
             if wrap is True:
                 data[t_col] = data[t_col] % (60*60*day_len)
             data[t_col] = data[t_col] / (60*60)
