@@ -97,7 +97,7 @@ class TestBehavpy:
         bp = etho.behavpy(sample_ethoscope_data, metadata, canvas='plotly')
         
         assert hasattr(bp, 'plot_overtime')
-        assert hasattr(bp, 'plot_quantiles')
+        assert hasattr(bp, 'plot_quantify')
 
     @pytest.mark.unit
     def test_behavpy_creation_seaborn(self, sample_ethoscope_data):
@@ -111,7 +111,7 @@ class TestBehavpy:
         bp = etho.behavpy(sample_ethoscope_data, metadata, canvas='seaborn')
         
         assert hasattr(bp, 'plot_overtime')
-        assert hasattr(bp, 'plot_quantiles')
+        assert hasattr(bp, 'plot_quantify')
 
     @pytest.mark.unit
     def test_behavpy_invalid_canvas(self, sample_ethoscope_data):

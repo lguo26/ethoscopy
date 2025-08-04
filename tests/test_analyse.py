@@ -250,41 +250,55 @@ class TestFindRuns:
     def test_find_runs_basic(self):
         """Test basic run finding functionality."""
         mov = np.array([True, True, False, False, False, True, True])
+        time = np.arange(len(mov))
+        dt = np.ones(len(mov))
         
-        result = _find_runs(mov, 2)  # Minimum run length of 2
+        result = _find_runs(mov, time, dt)
         
-        assert isinstance(result, np.ndarray)
+        assert isinstance(result, pd.DataFrame)
         assert len(result) == len(mov)
-        assert result.dtype == bool
+        assert 't' in result.columns
+        assert 'moving' in result.columns
+        assert 'activity_count' in result.columns
 
     @pytest.mark.unit
     def test_find_runs_no_valid_runs(self):
-        """Test run finding when no runs meet minimum length."""
-        mov = np.array([True, False, True, False, True])  # All runs length 1
+        """Test run finding with alternating pattern."""
+        mov = np.array([True, False, True, False, True])
+        time = np.arange(len(mov))
+        dt = np.ones(len(mov))
         
-        result = _find_runs(mov, 3)  # Minimum run length of 3
+        result = _find_runs(mov, time, dt)
         
-        assert isinstance(result, np.ndarray)
-        assert not result.any()  # No runs should meet criteria
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == len(mov)
+        # Check that activity_count changes for each alternating run
+        assert len(result['activity_count'].unique()) == len(mov)
 
     @pytest.mark.unit
     def test_find_runs_all_same_value(self):
         """Test run finding with all same values."""
         mov = np.array([False] * 10)
+        time = np.arange(len(mov))
+        dt = np.ones(len(mov))
         
-        result = _find_runs(mov, 5)
+        result = _find_runs(mov, time, dt)
         
-        assert isinstance(result, np.ndarray)
-        assert result.all()  # Should all be True (one long run)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == len(mov)
+        # All should have same activity_count (one long run)
+        assert result['activity_count'].nunique() == 1
 
     @pytest.mark.unit
     def test_find_runs_empty_array(self):
         """Test run finding with empty array."""
         mov = np.array([], dtype=bool)
+        time = np.array([])
+        dt = np.array([])
         
-        result = _find_runs(mov, 2)
+        result = _find_runs(mov, time, dt)
         
-        assert isinstance(result, np.ndarray)
+        assert isinstance(result, pd.DataFrame)
         assert len(result) == 0
 
 
