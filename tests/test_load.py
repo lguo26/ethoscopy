@@ -306,3 +306,33 @@ class TestIntegrationLoadWorkflow:
         assert len(final_data) > 0
         assert 'id' in final_data.columns
         assert 't' in final_data.columns
+
+    @pytest.mark.integration
+    def test_real_database_loading(self, real_ethoscope_db):
+        """Test loading from a real ethoscope database file."""
+        from ethoscopy.load import read_single_roi
+        
+        # Create minimal file info for the real database
+        file_info = pd.Series({
+            'path': str(real_ethoscope_db),
+            'region_id': 1,  # Try ROI 1
+            'machine_id': 'ETHOSCOPE_070',
+            'date': '2025-07-10'
+        })
+        
+        # Test reading a single ROI
+        result = read_single_roi(file_info)
+        
+        assert result is not None, "Failed to read data from real database"
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0, "No data found in real database"
+        assert 'id' in result.columns
+        assert 't' in result.columns
+        assert 'x' in result.columns
+        assert 'y' in result.columns
+        
+        # Verify data quality
+        assert result['t'].min() >= 0, "Time values should be non-negative"
+        assert result['t'].is_monotonic_increasing, "Time should be monotonic"
+        assert not result['x'].isna().all(), "X coordinates should not be all NaN"
+        assert not result['y'].isna().all(), "Y coordinates should not be all NaN"

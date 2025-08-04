@@ -19,6 +19,20 @@ import ethoscopy as etho
 
 
 @pytest.fixture
+def real_ethoscope_db():
+    """
+    Fixture providing path to real ethoscope database file for testing.
+    
+    Returns:
+        Path: Path to the real test database file
+    """
+    test_db_path = Path(__file__).parent / "data" / "test_ethoscope.db"
+    if not test_db_path.exists():
+        pytest.skip("Real test database file not found. Run: make test-data")
+    return test_db_path
+
+
+@pytest.fixture
 def sample_metadata_csv(tmp_path):
     """
     Create a sample metadata CSV file for testing.
