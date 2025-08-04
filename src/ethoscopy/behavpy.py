@@ -2,12 +2,24 @@ from ethoscopy.behavpy_core import behavpy_core
 from ethoscopy.behavpy_plotly import behavpy_plotly
 from ethoscopy.behavpy_seaborn import behavpy_seaborn
 
-def behavpy(data, meta, canvas='seaborn', palette = None, long_palette = None, check = False, index= None, columns=None, dtype=None, copy=True):
+
+def behavpy(
+    data,
+    meta,
+    canvas="seaborn",
+    palette=None,
+    long_palette=None,
+    check=False,
+    index=None,
+    columns=None,
+    dtype=None,
+    copy=True,
+):
     """
     Factory function that creates a behavpy object with the specified visualisation backend.
 
     The behavpy class extends pandas DataFrame to provide specialised functionality for handling and analysing
-    behavioural data from ethoscope experiments. It maintains a link between experimental data and corresponding 
+    behavioural data from ethoscope experiments. It maintains a link between experimental data and corresponding
     metadata, with methods for data manipulation, analysis, and visualisation.
 
     Args:
@@ -37,30 +49,36 @@ def behavpy(data, meta, canvas='seaborn', palette = None, long_palette = None, c
         ValueError: If an invalid canvas type is specified.
     """
 
-    if canvas == 'plotly':
+    if canvas == "plotly":
 
         # If no palette is privided choose the defaults
         if palette is None:
-            palette = 'Safe'
+            palette = "Safe"
         if long_palette is None:
-            long_palette = 'Dark24'
+            long_palette = "Dark24"
 
-        return behavpy_plotly(data, meta, palette, long_palette, check, index, columns, dtype, copy)
+        return behavpy_plotly(
+            data, meta, palette, long_palette, check, index, columns, dtype, copy
+        )
 
-    elif canvas == 'seaborn':
+    elif canvas == "seaborn":
 
         # If no palette is privided choose the defaults
         if palette is None:
-            palette = 'deep'
+            palette = "deep"
         if long_palette is None:
-            long_palette = 'deep'
+            long_palette = "deep"
         if palette is not None and long_palette is None:
             long_palette = palette
 
-        return behavpy_seaborn(data, meta, palette, long_palette, check, index, columns, dtype, copy)
+        return behavpy_seaborn(
+            data, meta, palette, long_palette, check, index, columns, dtype, copy
+        )
 
     elif canvas is None:
-        return behavpy_core(data, meta, palette, long_palette, check, index, columns, dtype, copy)
+        return behavpy_core(
+            data, meta, palette, long_palette, check, index, columns, dtype, copy
+        )
 
     else:
-        raise ValueError('Invalid canvas specified')
+        raise ValueError("Invalid canvas specified")

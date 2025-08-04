@@ -9,13 +9,13 @@ from ethoscopy.load import (
     download_from_remote_dir,
     link_meta_index,
     load_ethoscope,
-    load_ethoscope_metadata
+    load_ethoscope_metadata,
 )
 from ethoscopy.analyse import (
     max_velocity_detector,
     sleep_annotation,
     stimulus_response,
-    stimulus_prior
+    stimulus_prior,
 )
 from ethoscopy.misc.general_functions import concat
 
@@ -24,14 +24,14 @@ import importlib.metadata
 __version__ = importlib.metadata.version("ethoscopy")
 
 __all__ = [
-    'behavpy',
-    'download_from_remote_dir',
-    'link_meta_index',
-    'load_ethoscope',
-    'load_ethoscope_metadata',
-    'max_velocity_detector',
-    'sleep_annotation',
-    'stimulus_response',
-    'stimulus_prior',
-    'concat'
+    "behavpy",
+    "download_from_remote_dir",
+    "link_meta_index",
+    "load_ethoscope",
+    "load_ethoscope_metadata",
+    "max_velocity_detector",
+    "sleep_annotation",
+    "stimulus_response",
+    "stimulus_prior",
+    "concat",
 ]

@@ -1,6 +1,7 @@
-import plotly.graph_objs as go 
+import plotly.graph_objs as go
 from itertools import cycle
 from typing import Union
+
 
 def fancy_range(start, stop, steps=(1,)):
     """
@@ -12,30 +13,38 @@ def fancy_range(start, stop, steps=(1,)):
         yield val
         val += next(steps)
 
+
 def make_bars(bar, bar_col, size, split, y_size1, y_size2):
-    """ The function to generate plotly shapes for the boxes """
-    shaped_bar = go.layout.Shape(type="rect", 
-                                x0=bar, 
-                                y0= y_size1, 
-                                x1=bar+size, 
-                                y1= y_size2,
-                                line=dict(
-                                    color="black", 
-                                    width=0.5) ,
-                                fillcolor=bar_col
-                            )
+    """The function to generate plotly shapes for the boxes"""
+    shaped_bar = go.layout.Shape(
+        type="rect",
+        x0=bar,
+        y0=y_size1,
+        x1=bar + size,
+        y1=y_size2,
+        line=dict(color="black", width=0.5),
+        fillcolor=bar_col,
+    )
     if split != 0:
-        shaped_bar['xref'] = f'x{split+1}'
-        shaped_bar['yref'] = f'y{split+1}'
+        shaped_bar["xref"] = f"x{split+1}"
+        shaped_bar["yref"] = f"y{split+1}"
 
     return shaped_bar
 
-def circadian_bars(t_min: int|float, t_max: int|float, min_y: int|float, max_y: int|float, 
-                  day_length: int|float = 24, lights_off: int|float = 12, 
-                  split: bool|int = False, canvas: str = 'plotly') -> Union[dict, tuple]:
-    """ 
+
+def circadian_bars(
+    t_min: int | float,
+    t_max: int | float,
+    min_y: int | float,
+    max_y: int | float,
+    day_length: int | float = 24,
+    lights_off: int | float = 12,
+    split: bool | int = False,
+    canvas: str = "plotly",
+) -> Union[dict, tuple]:
+    """
     Generate light/dark cycle indicator boxes for circadian plots.
-    
+
     Creates visual indicators for light and dark periods in both Plotly and Seaborn plots.
 
     Args:
@@ -59,30 +68,46 @@ def circadian_bars(t_min: int|float, t_max: int|float, min_y: int|float, max_y: 
         split = 1
 
     y_size1 = min_y
-    y_size2 = min_y - ((max_y-min_y) / scale)   
+    y_size2 = min_y - ((max_y - min_y) / scale)
 
     if lights_off < 1 or lights_off > day_length:
-        raise ValueError(f"The argument for lights_off must be between 1 and {day_length}")
+        raise ValueError(
+            f"The argument for lights_off must be between 1 and {day_length}"
+        )
 
     # Light-Dark annotaion bars
     bar_shapes = {}
 
-    if (t_min - lights_off) % (day_length/2) == 0:
-        used_range = fancy_range(t_min, t_max, (day_length-lights_off, lights_off))
+    if (t_min - lights_off) % (day_length / 2) == 0:
+        used_range = fancy_range(t_min, t_max, (day_length - lights_off, lights_off))
     else:
-        used_range = fancy_range(t_min, t_max, (lights_off, day_length-lights_off))
+        used_range = fancy_range(t_min, t_max, (lights_off, day_length - lights_off))
 
-    if canvas == 'seaborn':
-        size = (max_y-min_y) / scale
+    if canvas == "seaborn":
+        size = (max_y - min_y) / scale
         return used_range, size
 
     for i, bars in enumerate(used_range):
         for c in range(split):
             if bars % day_length == 0:
-                white_bar = make_bars(bar = bars, bar_col = 'white', size = lights_off, split = c, y_size1 = y_size1, y_size2 = y_size2)
-                bar_shapes[f'shape_{i}{c}'] = white_bar
+                white_bar = make_bars(
+                    bar=bars,
+                    bar_col="white",
+                    size=lights_off,
+                    split=c,
+                    y_size1=y_size1,
+                    y_size2=y_size2,
+                )
+                bar_shapes[f"shape_{i}{c}"] = white_bar
             else:
-                black_bar = make_bars(bar = bars, bar_col = 'black', size = day_length - lights_off, split = c, y_size1 = y_size1, y_size2 = y_size2)
-                bar_shapes[f'shape_{i}{c}'] = black_bar
+                black_bar = make_bars(
+                    bar=bars,
+                    bar_col="black",
+                    size=day_length - lights_off,
+                    split=c,
+                    y_size1=y_size1,
+                    y_size2=y_size2,
+                )
+                bar_shapes[f"shape_{i}{c}"] = black_bar
 
     return bar_shapes, y_size2
