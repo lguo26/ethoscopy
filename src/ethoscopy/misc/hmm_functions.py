@@ -45,12 +45,12 @@ def hmm_mean_length(state_array: np.ndarray, delta_t: int = 60,
     assert isinstance(raw, bool)
     delta_t_mins = delta_t / 60
 
-    v, _, l = rle(state_array)
+    v, _, lengths = rle(state_array)
     
     df = pd.DataFrame({
         'state': v,
-        'length': l,
-        'length_adjusted': l * delta_t_mins 
+        'length': lengths,
+        'length_adjusted': lengths * delta_t_mins 
     })
     
     if raw:

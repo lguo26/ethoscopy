@@ -85,7 +85,7 @@ class db_organiser():
         
         db_list = self._update_db_list()
         
-        l = []
+        result_list = []
         for db in db_list:
             #takes only the last four entries of the path, otherwise it will fail if fullpath=True 
             e_id, e_name, exp_datetime, db_name = db.split("/")[-4:]
@@ -93,11 +93,11 @@ class db_organiser():
             filesize = os.stat(os.path.join(self.db_path, db)).st_size
             
             if not fullpath:
-                l.append ([e_id, e_name, exp_date, exp_time, db_name, filesize])
+                result_list.append ([e_id, e_name, exp_date, exp_time, db_name, filesize])
             else:
-                l.append ([e_id, e_name, exp_date, exp_time, db, filesize])
+                result_list.append ([e_id, e_name, exp_date, exp_time, db, filesize])
         
-        self.db = pd.DataFrame(l, columns=['ethoscope_id', 'ethoscope_name', 'experiment_date', 'experiment_time', 'db_filename', 'filesize'])
+        self.db = pd.DataFrame(result_list, columns=['ethoscope_id', 'ethoscope_name', 'experiment_date', 'experiment_time', 'db_filename', 'filesize'])
 
     def savedb(self):
         '''
@@ -121,7 +121,7 @@ class db_organiser():
         with open(index_file, "w") as ind:
             
             for db in self._update_db_list():
-                fs = os.stat(fp).st_size
+                fs = os.stat(db).st_size
                 ind.write('"%s", %s\r\n' % (db, fs))
 
 
@@ -154,7 +154,7 @@ class db_organiser():
         g = self.find_entry( row['machine_name'], row['date'] )
         try:
             r = g.loc [ g['filesize'].idxmax() ][['db_filename', 'filesize']]
-        except:
+        except (KeyError, ValueError, IndexError):
             r = [pd.NA, pd.NA]
         return r
 
@@ -186,7 +186,7 @@ class metadata_handler():
             info_file = filename+'.info'
             with open(info_file, 'r') as i:
                 self.info = json.load(i)
-        except:
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
             self.info = { 'tags' : tags,
                           'project' : project,
                           'description': description,
@@ -280,7 +280,7 @@ class metadata_handler():
 
         try:
             os.mkdir(full_dir)
-        except:
+        except (FileExistsError, OSError):
             pass
             
         #save metadata
@@ -333,8 +333,8 @@ class db_crawler():
         Crawl the info files and collects the choice of authors, DOIs, and projects
         '''
         
-        def remove_empty(l):
-            return list(set([i for i in l if ((i != '') and (i != [])) ]))
+        def remove_empty(input_list):
+            return list(set([i for i in input_list if ((i != '') and (i != [])) ]))
         
         all_projects = []
         all_authors = []

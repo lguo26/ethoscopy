@@ -56,7 +56,7 @@ def chi_squared(data: pd.DataFrame, t_col: str, var: str,
     # Extract data efficiently
     id_val = data.name
     start, end = 60*60*period_range[0], 60*60*period_range[1]
-    t, y = data[t_col].to_numpy(), data[var].to_numpy()
+    y = data[var].to_numpy()
     
     # Pre-allocate periods array
     periods = np.arange(start, end + time_resolution, time_resolution)

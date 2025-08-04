@@ -1,6 +1,5 @@
 import numpy as np 
 import pandas as pd
-import re
 
 import seaborn as sns
 from plotly.express.colors import qualitative
@@ -105,15 +104,15 @@ class behavpy_draw(behavpy_core):
                 raise ValueError('The number of labels and colours does not match the number of states in the HMM')
 
         elif num_states == 4:
-            if lab == None:
+            if lab is None:
                 lab = self._hmm_labels
-            if col == None:
+            if col is None:
                 col = self._hmm_colours
 
         elif num_states != 4:
-            if lab == None:
+            if lab is None:
                 lab = [f'state_{i}' for i in range(0, num_states)]
-            if col == None:
+            if col is None:
                 col = self._get_colours(hm.transmat_)[:len(lab)]
 
         if len(lab) != len(col):
@@ -595,7 +594,7 @@ class behavpy_draw(behavpy_core):
         heatmap_df = self.copy(deep = True)
         # change movement values from boolean to intergers and bin to 30 mins finding the mean
         if variable == 'moving':
-            heatmap_df[variable] = np.where(heatmap_df[variable] == True, 1, 0)
+            heatmap_df[variable] = np.where(heatmap_df[variable], 1, 0)
 
         heatmap_df = heatmap_df.bin_time(variable, bin_secs = 1800, t_column = t_column)
         heatmap_df['t_bin'] = heatmap_df['t_bin'] / (60*60)
@@ -1312,7 +1311,8 @@ class behavpy_draw(behavpy_core):
 
         palette = self._get_colours(facet_labels)
         palette_dict = {name : self._check_grey(name, palette[c])[1] for c, name in enumerate(facet_labels)} # change to grey if control
-        if facet_col: grouped_data = self.facet_merge(grouped_data, self.meta,facet_col, facet_arg, facet_labels)
+        if facet_col:
+            grouped_data = self.facet_merge(grouped_data, self.meta,facet_col, facet_arg, facet_labels)
 
         return grouped_data, palette_dict, facet_labels
     
@@ -1421,8 +1421,8 @@ class behavpy_draw(behavpy_core):
         # get each specimens states time series to find lengths
         states = decoded_data.groupby(decoded_data.index, sort=False)['state'].apply(list)
         df_lengths = []
-        for l, id in zip(states, states.index):
-            length = hmm_mean_length(l, delta_t = t_bin) 
+        for state_list, id in zip(states, states.index):
+            length = hmm_mean_length(state_list, delta_t = t_bin) 
             length['id'] = [id] * len(length)
             df_lengths.append(length)
 
@@ -1453,8 +1453,8 @@ class behavpy_draw(behavpy_core):
         # get each specimens states time series to find lengths
         states = decoded_data.groupby(decoded_data.index, sort=False)['state'].apply(list)
         df_lengths = []
-        for l, id in zip(states, states.index):
-            length = hmm_mean_length(l, delta_t = t_bin, raw=True) 
+        for state_list, id in zip(states, states.index):
+            length = hmm_mean_length(state_list, delta_t = t_bin, raw=True) 
             length['id'] = [id] * len(length)
             df_lengths.append(length)
 
@@ -1485,8 +1485,8 @@ class behavpy_draw(behavpy_core):
         # get each specimens states time series to find lengths
         states = decoded_data.groupby(decoded_data.index, sort=False)['state'].apply(list)
         df_list = []
-        for l, id in zip(states, states.index):
-            length = hmm_pct_transition(l, total_states=list(range(len(labels)))) 
+        for state_list, id in zip(states, states.index):
+            length = hmm_pct_transition(state_list, total_states=list(range(len(labels)))) 
             length['id'] = [id] * len(length)
             df_list.append(length)
 

@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np 
 from math import floor
 import copy
-from random import shuffle
 from ethoscopy.misc.general_functions import rle
 
 def max_velocity_detector(data: pd.DataFrame, 
@@ -230,15 +229,15 @@ def sleep_annotation(data: pd.DataFrame,
             List of boolean sleep states for each timepoint
         """
         min_samples = sampling_freq * min_duration
-        v, _, l = rle(np.logical_not(movement_data))
+        v, _, lengths = rle(np.logical_not(movement_data))
 
         # Convert to numpy arrays to ensure compatible types
-        valid_sleep = np.array(l >= min_samples)
+        valid_sleep = np.array(lengths >= min_samples)
         sleep_states = np.logical_and(valid_sleep, np.array(v))
 
         # Expand run lengths back to original time series
         sleep_series = []
-        for state, length in zip(sleep_states, l):
+        for state, length in zip(sleep_states, lengths):
             sleep_series.extend([state] * length)
             
         return sleep_series
@@ -269,8 +268,8 @@ def _find_runs(mov: np.ndarray,
     Returns:
         pd.DataFrame: Movement runs with columns ['t', 'moving', 'activity_count', 'deltaT']
     """
-    _, _, l = rle(mov)
-    count_list = np.concatenate([[c] * cnt for c, cnt in enumerate(l)], dtype = int)
+    _, _, lengths = rle(mov)
+    count_list = np.concatenate([[c] * cnt for c, cnt in enumerate(lengths)], dtype = int)
     return pd.DataFrame({'t' : time, 'moving' : mov, 'activity_count' : count_list, 'deltaT' : dt})
 
 def cumsum_delta(dataframe: pd.DataFrame, 
@@ -348,7 +347,7 @@ def stimulus_response(data: pd.DataFrame,
         # find continuous runs of either moving or immobile
         counted_df = _find_runs(data['moving'], data['t'], data['deltaT'])
         # for runs of immobility cumsum the detlta time and add false interactions at every interval of the immobility integer, i.e. every 30 seconds add 2
-        new_int_df = cumsum_delta(dataframe=counted_df[counted_df['moving'] == False], immobility_int=add_false)
+        new_int_df = cumsum_delta(dataframe=counted_df[~counted_df['moving']], immobility_int=add_false)
         data = pd.merge(data, new_int_df[['t', 'new_has_interacted']], how = 'left', on = 't')
         # integrate the new false interactions into the original column, but keeping the true ones
         data['has_interacted'] = np.where((data['new_has_interacted'] == 2) & (data['has_interacted'] == 0), 2, data['has_interacted'])
@@ -399,9 +398,9 @@ def stimulus_response(data: pd.DataFrame,
         if any(response_data['has_responded']):
             response_dict = response_data[response_data['t_rel'] == 0].to_dict('records')[0]
             response_dict['has_responded'] = True
-            response_dict['has_walked'] = response_data['has_walked'][response_data['has_responded'] == True].iloc[0]
-            response_dict['t_rel'] = response_data['t_rel'][response_data['has_responded'] == True].iloc[0]
-            response_dict['response_velocity'] = response_data['velocity'][response_data['has_responded'] == True].iloc[0]
+            response_dict['has_walked'] = response_data['has_walked'][response_data['has_responded']].iloc[0]
+            response_dict['t_rel'] = response_data['t_rel'][response_data['has_responded']].iloc[0]
+            response_dict['response_velocity'] = response_data['velocity'][response_data['has_responded']].iloc[0]
             del response_dict['int_id']
             response_rows.append(response_dict)
         else:

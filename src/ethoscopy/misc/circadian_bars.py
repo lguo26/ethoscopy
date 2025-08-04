@@ -52,7 +52,7 @@ def circadian_bars(t_min: int|float, t_max: int|float, min_y: int|float, max_y: 
         Union[dict, tuple]: For plotly: dict of shape objects and y-size
                            For seaborn: tuple of (range values, box size)
     """
-    if split != False:
+    if split:
         scale = 20
     else:
         scale = 40

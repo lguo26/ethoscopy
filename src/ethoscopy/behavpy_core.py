@@ -13,7 +13,6 @@ from scipy.stats import zscore
 
 from ethoscopy.misc.general_functions import concat, rle
 from ethoscopy.analyse import max_velocity_detector
-from ethoscopy.misc.periodogram_functions import chi_squared, lomb_scargle, fourier, wavelet
 
 from typing import Optional, List, Union, Tuple, Dict, Any, Callable
 
@@ -100,13 +99,13 @@ class behavpy_core(pd.DataFrame):
         if dataframe.index.name != 'id':
             try:
                 dataframe.set_index('id', inplace = True)
-            except:
+            except (KeyError, ValueError):
                 raise KeyError("There is no 'id' as a column or index in the data'")
 
         if dataframe.meta.index.name != 'id':
             try:
                 dataframe.meta.set_index('id', inplace = True)
-            except:
+            except (KeyError, ValueError):
                 raise KeyError("There is no 'id' as a column or index in the metadata'")
 
         # checks if all id's of data are in the metadata dataframe
@@ -357,12 +356,12 @@ class behavpy_core(pd.DataFrame):
         day_in_secs = 60*60*day_length
         night_in_secs = lights_off * 60 * 60
 
-        if inplace == True:
+        if inplace:
             self['day'] = self[t_column].map(lambda t: floor(t / day_in_secs))
             self['phase'] = np.where(((self[t_column] % day_in_secs) > night_in_secs), 'dark', 'light')
             self['phase'] = self['phase'].astype('category')
 
-        elif inplace == False:
+        elif not inplace:
             new_df = self.copy(deep = True)
             new_df['day'] = new_df[t_column].map(lambda t: floor(t / day_in_secs)) 
             new_df['phase'] = np.where(((new_df[t_column] % day_in_secs) > night_in_secs), 'dark', 'light')
@@ -664,9 +663,9 @@ class behavpy_core(pd.DataFrame):
             This is an internal helper method used for analyzing movement patterns.
             The activity count represents how many consecutive values appear in each run.
         """
-        _, _, l = rle(mov)
-        # count_list = np.concatenate([np.append(np.arange(1, cnt + 1, 1)[: -1], np.nan) for cnt in l], dtype = float)
-        count_list = np.concatenate([np.arange(1, cnt + 1, 1) for cnt in l], dtype = float)
+        _, _, lengths = rle(mov)
+        # count_list = np.concatenate([np.append(np.arange(1, cnt + 1, 1)[: -1], np.nan) for cnt in lengths], dtype = float)
+        count_list = np.concatenate([np.arange(1, cnt + 1, 1) for cnt in lengths], dtype = float)
         previous_count_list = count_list[:-1]
         previous_count_list = np.insert(previous_count_list, 0, np.nan)
         previous_mov = mov[:-1].astype(float)
@@ -1552,7 +1551,7 @@ class behavpy_core(pd.DataFrame):
         missing_values = time_map[~time_map.isin(d_small[t_column].tolist())]
         d_small = d_small.merge(time_map, how = 'right', on = t_column, copy = False).sort_values(by=[t_column])
         d_small['is_interpolated'] = np.where(d_small[t_column].isin(missing_values), True, False)
-        d_small[mov_column] = np.where(d_small['is_interpolated'] == True, False, d_small[mov_column])
+        d_small[mov_column] = np.where(d_small['is_interpolated'], False, d_small[mov_column])
 
         d_small['asleep'] = _sleep_contiguous(d_small[mov_column], 1/time_window_length, min_valid_time = min_time_immobile)
         d_small['id'] = [d_small['id'].iloc[0]] * len(d_small)
@@ -1710,9 +1709,9 @@ class behavpy_core(pd.DataFrame):
             
             # if the fly is near to the food and mirco moving, then they are assumed to be feeding
             if food_position == 'outside':
-                d['feeding'] = np.where((d[x_position] < x_min+dist_from_food) & (d[micro_mov] == True), True, False)
+                d['feeding'] = np.where((d[x_position] < x_min+dist_from_food) & d[micro_mov], True, False)
             elif food_position == 'inside':
-                d['feeding'] = np.where((d[x_position] > x_max-dist_from_food) & (d[micro_mov] == True), True, False)
+                d['feeding'] = np.where((d[x_position] > x_max-dist_from_food) & d[micro_mov], True, False)
             return d
             
         ds.reset_index(inplace = True)   
@@ -1778,7 +1777,7 @@ class behavpy_core(pd.DataFrame):
 
         # Convert boolean columns to integers
         if var in ['moving', 'asleep']:
-            d[var] = np.where(d[var] == True, 1, 0)
+            d[var] = np.where(d[var], 1, 0)
         
         # bin the data to X second intervals with a selected column and function on that column
         try:
@@ -1966,7 +1965,7 @@ class behavpy_core(pd.DataFrame):
             gb = bin_to_list(hmm_df, t_column = t_column, mov_var = var_column, bin = bin_time)
 
         elif var_column == 'moving':
-            hmm_df[var_column] = np.where(hmm_df[var_column] == True, 1, 0)
+            hmm_df[var_column] = np.where(hmm_df[var_column], 1, 0)
             gb = bin_to_list(hmm_df, t_column = t_column, mov_var = var_column, bin = bin_time)
 
         else:
@@ -2036,9 +2035,11 @@ class behavpy_core(pd.DataFrame):
                         df_t = pd.DataFrame(h.transmat_, index = states, columns = states)
                         print(tabulate(df_t, headers = 'keys', tablefmt = "github") + "\n")
                         
-                        with open(file_name, "wb") as file: pickle.dump(h, file)
-                except OSError as e:
-                    with open(file_name, "wb") as file: pickle.dump(h, file)
+                        with open(file_name, "wb") as file:
+                            pickle.dump(h, file)
+                except OSError:
+                    with open(file_name, "wb") as file:
+                        pickle.dump(h, file)
 
             # After see score on the test portion and only save if better
             else:
@@ -2047,7 +2048,8 @@ class behavpy_core(pd.DataFrame):
                     print('New Matrix:')
                     df_t = pd.DataFrame(h.transmat_, index = states, columns = states)
                     print(tabulate(df_t, headers = 'keys', tablefmt = "github") + "\n")
-                    with open(file_name, "wb") as file: pickle.dump(h, file)
+                    with open(file_name, "wb") as file:
+                        pickle.dump(h, file)
 
             # Final iteration, load the best model and print its values
             if i+1 == iterations:
@@ -2242,7 +2244,7 @@ class behavpy_core(pd.DataFrame):
             raise AttributeError(f"Unknown periodogram type, please use one of {*periodogram_list,}")
 
         if isinstance(per_range, list) is False and isinstance(per_range, np.array) is False:
-            raise TypeError(f"per_range should be a list or nummpy array, please change")
+            raise TypeError("per_range should be a list or nummpy array, please change")
 
         if isinstance(per_range, list) or isinstance(per_range, np.array):
 
@@ -2250,7 +2252,7 @@ class behavpy_core(pd.DataFrame):
                 raise TypeError("The period range can only be a tuple/array of length 2, please amend")
 
             if per_range[0] < 0 or per_range[1] < 0:
-                raise ValueError(f"One or both of the values of the period_range given are negative, please amend")
+                raise ValueError("One or both of the values of the period_range given are negative, please amend")
 
         return fun
 

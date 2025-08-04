@@ -59,7 +59,7 @@ def behavpy(data, meta, canvas='seaborn', palette = None, long_palette = None, c
 
         return behavpy_seaborn(data, meta, palette, long_palette, check, index, columns, dtype, copy)
 
-    elif canvas == None:
+    elif canvas is None:
         return behavpy_core(data, meta, palette, long_palette, check, index, columns, dtype, copy)
 
     else:

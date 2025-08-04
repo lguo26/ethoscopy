@@ -94,7 +94,8 @@ class behavpy_seaborn(behavpy_draw):
 
         plt.yticks(ticks=np.arange(0, len(id), 2), labels=id[::-2], rotation=0)
 
-        if title: fig.suptitle(title, fontsize=16, y = 1)
+        if title:
+            fig.suptitle(title, fontsize=16, y = 1)
 
         return fig
 
@@ -209,7 +210,8 @@ class behavpy_seaborn(behavpy_draw):
         plt.xticks(ticks=x_ticks, labels=x_ticks, rotation=0)
         plt.xlabel("ZT Time (Hours)")
         plt.ylabel(variable)
-        if facet_col: plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
+        if facet_col:
+            plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
         plt.title(title)
 
         if grids:
@@ -333,7 +335,8 @@ class behavpy_seaborn(behavpy_draw):
 
             ax.set_ylabel(var)
 
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
         plt.title(title)
         plt.tight_layout()
 
@@ -464,7 +467,8 @@ class behavpy_seaborn(behavpy_draw):
         
         ax.set_ylabel(variable)
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -522,7 +526,8 @@ class behavpy_seaborn(behavpy_draw):
             sns.pointplot(data=grouped_data, x='phase', y="anticipation_score", order=['Lights On', 'Lights Off'], ax=ax, hue ='phase', palette={"Lights On" : "gold", "Lights Off" : "darkgrey"}, estimator = 'mean',
                             linestyle='none', errorbar= ("ci", 95), n_boot = 1000, markers="_", markersize=30, markeredgewidth=3)
 
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
         plt.title(title)
         plt.tight_layout()
         ax.set_ylabel('Anticipatory Phase Score')
@@ -531,7 +536,8 @@ class behavpy_seaborn(behavpy_draw):
         plt.ylim(0,100)
 
         # reorder dataframe for stats output
-        if facet_col: grouped_data = grouped_data.sort_values(facet_col)
+        if facet_col:
+            grouped_data = grouped_data.sort_values(facet_col)
 
         return fig, grouped_data
     
@@ -833,7 +839,8 @@ class behavpy_seaborn(behavpy_draw):
         plt.xlabel("ZT (Hours)")
         plt.title(title)
 
-        if facet_col: plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
+        if facet_col:
+            plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
 
         if grids:
             plt.grid(axis='y')
@@ -915,7 +922,8 @@ class behavpy_seaborn(behavpy_draw):
         plt.xlabel(facet_col)
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -959,7 +967,7 @@ class behavpy_seaborn(behavpy_draw):
                 for visual clarity.
         """  
 
-        seconday_label = {'time' : f'No. of stimulus (absolute)', 'number' : '% recieving stimulus'}
+        seconday_label = {'time' : 'No. of stimulus (absolute)', 'number' : '% recieving stimulus'}
 
         # call the internal method to curate and analse data, see behavpy_draw
         grouped_data, h_order, palette_dict, x_max, plot_choice = self._internal_plot_habituation(plot_type=plot_type, t_bin_hours=t_bin_hours, response_col=response_col, 
@@ -1003,7 +1011,8 @@ class behavpy_seaborn(behavpy_draw):
 
         ax.set_xlabel(plot_choice)
         ax.set_ylabel("Response Rate")
-        if facet_col: ax.legend(bbox_to_anchor=(1.06, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
+        if facet_col:
+            ax.legend(bbox_to_anchor=(1.06, 1), loc='upper left', borderaxespad=0) # legend outside of area if faceted 
 
         if stim_count is True:
             if plot_type == 'time':
@@ -1424,8 +1433,8 @@ class behavpy_seaborn(behavpy_draw):
         states_list, time_list = self._hmm_decode(df, hmm, t_bin, variable, func, t_column)
 
         df = pd.DataFrame()
-        for l, t in zip(states_list, time_list):
-            tdf = hmm_pct_state(l, t, list(range(len(labels))), avg_window = 5)
+        for state_list, t in zip(states_list, time_list):
+            tdf = hmm_pct_state(state_list, t, list(range(len(labels))), avg_window = 5)
             df = pd.concat([df, tdf], ignore_index = True)
 
         df.rename(columns = dict(zip([f'state_{c}' for c in range(0,len(labels))], labels)), inplace = True)
@@ -1503,7 +1512,8 @@ class behavpy_seaborn(behavpy_draw):
         else:
             df = self.copy(deep=True)
 
-        if facet_col is None and isinstance(hmm, list): facet_col = True # for when testing different HMMs on the same dataset
+        if facet_col is None and isinstance(hmm, list):
+            facet_col = True # for when testing different HMMs on the same dataset
 
         if facet_col is None:  # decode the whole dataset
             df = self.__class__(self._hmm_decode(df, hmm, t_bin, variable, func, t_column, return_type='table'), df.meta, check=True)
@@ -1516,11 +1526,12 @@ class behavpy_seaborn(behavpy_draw):
         # iterate over the faceted column. Decode and augment to be ready to plot
         for c, arg in enumerate(facet_arg):
             
-            if arg != None:
+            if arg is not None:
                 sub_df = df.xmv(facet_col, arg)
             else:
                 sub_df = df
-                if not isinstance(hmm, list): arg = ' '
+                if not isinstance(hmm, list):
+                    arg = ' '
                 else: 
                     arg = facet_labels[c]
                     facet_arg[c] = arg
@@ -1533,8 +1544,8 @@ class behavpy_seaborn(behavpy_draw):
 
             # calculate the % per state
             states_df = pd.DataFrame()
-            for l, t in zip(states_list, time_list):
-                tdf = hmm_pct_state(l, t, list(range(len(labels))), avg_window = 5)
+            for state_list, t in zip(states_list, time_list):
+                tdf = hmm_pct_state(state_list, t, list(range(len(labels))), avg_window = 5)
                 states_df = pd.concat([states_df, tdf], ignore_index = True)
 
             # melt to make ready for plot
@@ -1655,7 +1666,8 @@ class behavpy_seaborn(behavpy_draw):
                             linestyle='none', errorbar= ("ci", 95), n_boot = 1000, markers="_", markersize=30, markeredgewidth=3)
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         grouped_data.drop(columns=['bin', 'previous_state'], inplace=True)
@@ -1727,7 +1739,8 @@ class behavpy_seaborn(behavpy_draw):
                             linestyle='none', errorbar= ("ci", 95), n_boot = 1000, markers="_", markersize=30, markeredgewidth=3)
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -1802,7 +1815,8 @@ class behavpy_seaborn(behavpy_draw):
                             showcaps=False, showfliers=False, whiskerprops={'linewidth':0})
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -1875,7 +1889,8 @@ class behavpy_seaborn(behavpy_draw):
                             linestyle='none', errorbar= ("ci", 95), n_boot = 1000, markers="_", markersize=30, markeredgewidth=3)
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -1925,7 +1940,6 @@ class behavpy_seaborn(behavpy_draw):
         labels, colours = self._check_hmm_shape(hm = hmm, lab = None, col = colours)
         y_ticks = list(range(len(labels)))
 
-        colours_index = {c : col for c, col in enumerate(colours)}
 
         if isinstance(hmm, list):
             num_plots = len(hmm)
@@ -1993,7 +2007,8 @@ class behavpy_seaborn(behavpy_draw):
             axes[0].set_xticks(x_ticks) 
             axes[0].set_xticklabels(x_ticks, fontsize=12)  
 
-        if title: fig.suptitle(title, fontsize=20)
+        if title:
+            fig.suptitle(title, fontsize=20)
         fig.supxlabel("ZT Hours")
         fig.supylabel("Predicted State")
         return fig
@@ -2081,7 +2096,8 @@ class behavpy_seaborn(behavpy_draw):
                             linestyle='none', errorbar= ("ci", 95), n_boot = 1000, markers="_", markersize=30, markeredgewidth=3, dodge = 0.8 - 0.8 / len(h_order))
 
         plt.title(title)
-        if grids: plt.grid(axis='y')
+        if grids:
+            plt.grid(axis='y')
 
         # reorder dataframe for stats output
         if facet_col: 
@@ -2135,7 +2151,6 @@ class behavpy_seaborn(behavpy_draw):
         fig, ax = plt.subplots(figsize=figsize)
         plt.ylim([0, 1.01])
         plt.xlim([1, x_limit])
-        x_ticks = np.arange(1, x_limit+1, 1, dtype = int)
 
         if figsize == (0,0):
             figsize = ( 6 + 1/2 * x_limit, 

@@ -3,7 +3,6 @@ import numpy as np
 
 import plotly.graph_objs as go 
 from plotly.subplots import make_subplots
-from plotly.express.colors import qualitative
 
 from math import floor, ceil
 from scipy.stats import zscore
@@ -601,7 +600,8 @@ class behavpy_plotly(behavpy_draw):
 
             for c2, (var, secondary) in enumerate(zip(variables, bool_list)):
 
-                if facet_col is None: lab = var # have variable colour change if no facet
+                if facet_col is None:
+                    lab = var # have variable colour change if no facet
 
                 mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_df[plot_column_list[c2]].to_numpy(dtype=float), z_score = z_score)
 
@@ -611,7 +611,8 @@ class behavpy_plotly(behavpy_draw):
                 fig.add_trace(self._plot_boxpoints(y = zlist, x = len(zlist) * [var], colour = palette_dict[lab], 
                 showlegend = False, name = var, xaxis = f'x{c+1}'), secondary_y = secondary)
 
-                if facet_col is None: lab = facet_labels[c] # revert back for axis naming, not the most efficient \_O_O_/
+                if facet_col is None:
+                    lab = facet_labels[c] # revert back for axis naming, not the most efficient \_O_O_/
 
             axis = f'xaxis{c+1}'
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = lab, domains = domains[c:c+2], axis = axis)
@@ -669,7 +670,7 @@ class behavpy_plotly(behavpy_draw):
             sub_df = grouped_data[grouped_data['phase'] == phase]
 
             if len(sub_df) == 0:
-                print(f'Group {lab} has no values and cannot be plotted')
+                print(f'Group {phase} has no values and cannot be plotted')
                 continue
             
             if facet_col:
@@ -694,7 +695,8 @@ class behavpy_plotly(behavpy_draw):
                 showlegend = False, name = phase, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: phase = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                phase = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = phase, domains = domains[c:c+2], axis = axis)
 
         return fig, grouped_data
@@ -738,7 +740,7 @@ class behavpy_plotly(behavpy_draw):
             sub_df = grouped_data[grouped_data['phase'] == phase]
 
             if len(sub_df) == 0:
-                print(f'Group {lab} has no values and cannot be plotted')
+                print(f'Group {phase} has no values and cannot be plotted')
                 continue
             
             if facet_col:
@@ -763,7 +765,8 @@ class behavpy_plotly(behavpy_draw):
                 showlegend = False, name = phase, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: phase = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                phase = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = phase, domains = domains[c:c+2], axis = axis)
 
         return fig, grouped_data
@@ -1067,7 +1070,6 @@ class behavpy_plotly(behavpy_draw):
             map_dict = {k : v for k, v in zip(facet_arg, facet_labels)}
             sur_df['label'] = sur_df['label'].map(map_dict)
             for lab in facet_labels:
-                tdf = sur_df[sur_df['label'] == lab]
                 upper, trace, lower, _, _ = self._generate_overtime_plot(data = sur_df, var = 'survived', name = lab, col = palette_dict[lab], avg_win = False,
                                                                     wrap = False, day_len = False, light_off = False, t_col = 'hour')
                 fig.add_trace(upper)
@@ -1182,7 +1184,7 @@ class behavpy_plotly(behavpy_draw):
                 for visual clarity.
         """  
 
-        seconday_label = {'time' : f'No. of stimulus (absolute)', 'number' : '% recieving stimulus'}
+        seconday_label = {'time' : 'No. of stimulus (absolute)', 'number' : '% recieving stimulus'}
 
         # call the internal method to curate and analse data, see behavpy_draw
         grouped_data, h_order, palette_dict, x_max, plot_choice = self._internal_plot_habituation(plot_type=plot_type, t_bin_hours=t_bin_hours, response_col=response_col, interaction_id_col=interaction_id_col,
@@ -1697,8 +1699,8 @@ class behavpy_plotly(behavpy_draw):
         states_list, time_list = self._hmm_decode(df, hmm, t_bin, variable, func, t_column)
 
         df = pd.DataFrame()
-        for l, t in zip(states_list, time_list):
-            tdf = hmm_pct_state(l, t, list(range(len(labels))), avg_window = int((avg_window * 60)/t_bin))
+        for state_list, t in zip(states_list, time_list):
+            tdf = hmm_pct_state(state_list, t, list(range(len(labels))), avg_window = int((avg_window * 60)/t_bin))
             df = pd.concat([df, tdf], ignore_index = True)
 
         df.rename(columns = dict(zip([f'state_{c}' for c in range(0,len(labels))], labels)), inplace = True)
@@ -1765,7 +1767,8 @@ class behavpy_plotly(behavpy_draw):
         labels, colours = self._check_hmm_shape(hm = hmm, lab = labels, col = colours)
         facet_arg, facet_labels, h_list, b_list = self._check_lists_hmm(facet_col, facet_arg, facet_labels, hmm, t_bin)
 
-        if facet_col is None and isinstance(hmm, list): facet_col = True # for when testing different HMMs on the same dataset
+        if facet_col is None and isinstance(hmm, list):
+            facet_col = True # for when testing different HMMs on the same dataset
 
         if len(labels) <= 2:
             nrows = 1
@@ -1793,7 +1796,7 @@ class behavpy_plotly(behavpy_draw):
 
         for c, (arg, n, h, b) in enumerate(zip(facet_arg, facet_labels, h_list, b_list)):   
 
-            if arg != None:
+            if arg is not None:
                 sub_df = df.xmv(facet_col, arg)
             else:
                 sub_df = df
@@ -1805,8 +1808,8 @@ class behavpy_plotly(behavpy_draw):
                 time_list = sub_df.groupby(sub_df.index)['bin'].apply(list)
 
             analysed_df = pd.DataFrame()
-            for l, t in zip(states_list, time_list):
-                temp_df = hmm_pct_state(l, t, [0, 1, 2, 3], avg_window = int((avg_window * 60)/b))
+            for state_list, t in zip(states_list, time_list):
+                temp_df = hmm_pct_state(state_list, t, [0, 1, 2, 3], avg_window = int((avg_window * 60)/b))
                 analysed_df = pd.concat([analysed_df, temp_df], ignore_index = False)
 
             if wrapped is True:
@@ -1986,8 +1989,10 @@ class behavpy_plotly(behavpy_draw):
 
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
-                    if col_uniform: col = palette_dict[state]
-                    else: col = palette_dict[lab]
+                    if col_uniform:
+                        col = palette_dict[state]
+                    else:
+                        col = palette_dict[lab]
 
                     try:
                         mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_sub_df[plot_column].to_numpy(dtype=float), z_score = z_score)
@@ -2009,7 +2014,8 @@ class behavpy_plotly(behavpy_draw):
                 showlegend = False, name = state, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: state = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                state = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = state, domains = domains[c:c+2], axis = axis)
 
         # reorder dataframe for stats output
@@ -2078,8 +2084,10 @@ class behavpy_plotly(behavpy_draw):
 
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
-                    if col_uniform: col = palette_dict[state]
-                    else: col = palette_dict[lab]
+                    if col_uniform:
+                        col = palette_dict[state]
+                    else:
+                        col = palette_dict[lab]
 
                     mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_sub_df[plot_column].to_numpy(dtype=float), z_score = z_score)
 
@@ -2098,7 +2106,8 @@ class behavpy_plotly(behavpy_draw):
                 showlegend = False, name = state, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: state = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                state = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = state, domains = domains[c:c+2], axis = axis)
 
         # reorder dataframe for stats output
@@ -2173,8 +2182,10 @@ class behavpy_plotly(behavpy_draw):
 
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
-                    if col_uniform: col = palette_dict[state]
-                    else: col = palette_dict[lab]
+                    if col_uniform:
+                        col = palette_dict[state]
+                    else:
+                        col = palette_dict[lab]
 
                     mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_sub_df[plot_column].to_numpy(dtype=float), min_max = True, z_score = False)
 
@@ -2193,7 +2204,8 @@ class behavpy_plotly(behavpy_draw):
                     showlegend = False, name = state, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: state = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                state = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = state, domains = domains[c:c+2], axis = axis)
 
         # reorder dataframe for stats output
@@ -2266,8 +2278,10 @@ class behavpy_plotly(behavpy_draw):
 
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
-                    if col_uniform: col = palette_dict[state]
-                    else: col = palette_dict[lab]
+                    if col_uniform:
+                        col = palette_dict[state]
+                    else:
+                        col = palette_dict[lab]
 
                     mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_sub_df[plot_column].to_numpy(dtype=float), z_score = z_score)
 
@@ -2286,7 +2300,8 @@ class behavpy_plotly(behavpy_draw):
                 showlegend = False, name = state, xaxis = f'x{c+1}'))
 
             axis = f'xaxis{c+1}'
-            if facet_col is None: state = ' ' # to prevent double labelling of light dark
+            if facet_col is None:
+                state = ' ' # to prevent double labelling of light dark
             self._plot_xlayout(fig, xrange = False, t0 = False, dtick = False, xlabel = state, domains = domains[c:c+2], axis = axis)
 
         # reorder dataframe for stats output
@@ -2386,8 +2401,8 @@ class behavpy_plotly(behavpy_draw):
                 df2['bin'] = df2['interaction_t'].map(lambda t:  b * floor(t / b))
                 df2.reset_index(inplace = True)
                 df = pd.merge(df, df2, how = 'outer', on = ['id', 'bin'])
-                df['colour'] = np.where(df['has_responded'] == True, 'purple', df['colour'])
-                df['colour'] = np.where(df['has_responded'] == False, 'lime', df['colour'])
+                df['colour'] = np.where(df['has_responded'], 'purple', df['colour'])
+                df['colour'] = np.where(~df['has_responded'], 'lime', df['colour'])
             
             df['bin'] = df['bin'] / (60*60) # change time to be a fraction of an hour
 
@@ -2406,7 +2421,7 @@ class behavpy_plotly(behavpy_draw):
                 )
             fig.add_trace(trace1, row = c+1, col= 1)
 
-            if show_movement == True:
+            if show_movement:
                 df[variable] = np.roll((df[variable] * 2) + 0.5, 1)
                 trace2 = go.Scatter(
                     showlegend = False,
@@ -2566,11 +2581,12 @@ class behavpy_plotly(behavpy_draw):
             for lab in h_order:
 
                 sub_np = sub_df[plot_column][sub_df[facet_col] == lab].to_numpy()
-                if len(sub_np) == 0: continue # normally used when no Spon. Mov. is present
+                if len(sub_np) == 0:
+                    continue # normally used when no Spon. Mov. is present
 
                 mean, median, q3, q1, zlist = self._zscore_bootstrap(sub_np, z_score = z_score)
 
-                if col_uniform == True:
+                if col_uniform:
                     if 'Spon. Mov.' in lab:
                         marker_col = palette_dict[lab]
                     else:
@@ -2641,7 +2657,7 @@ class behavpy_plotly(behavpy_draw):
         # create and style plot
         fig = go.Figure() 
         self._plot_ylayout(fig, yrange = [0, 1], t0 = 0, dtick = 0.2, ylabel = 'Response Rate', title = title, grid = grids)
-        self._plot_xlayout(fig, xrange = False, t0 = 0, dtick = t_bin/60, xlabel = f'Consecutive minutes in state')
+        self._plot_xlayout(fig, xrange = False, t0 = 0, dtick = t_bin/60, xlabel = 'Consecutive minutes in state')
 
         for hue in h_order:
             sub_df = grouped_data[grouped_data['label_col'] == hue]
@@ -2710,7 +2726,6 @@ class behavpy_plotly(behavpy_draw):
         # set the background white and put the legend to the side
         fig.update_layout({'legend': {'bgcolor': 'rgba(201, 201, 201, 1)', 'bordercolor': 'grey', 'font': {'size': 12}, 'x': 1.01, 'y': 0.5}, 'plot_bgcolor': 'white'})
         # set the layout on all the different axises
-        end_index = len(layouts) - 1
         for c, lay in enumerate(layouts):
             yaxis_title = lay['yaxis'].pop('title')
             xaxis_title = lay['xaxis'].pop('title')

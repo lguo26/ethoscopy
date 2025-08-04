@@ -128,7 +128,7 @@ def download_from_remote_dir(meta, remote_dir, local_dir):
                                         paths.append(path_size_list)
                                         check_list.append([name, date_time[0]])
                                     
-        except:
+        except (OSError, IOError, Exception):
             continue
 
     if len(paths) == 0:
@@ -291,9 +291,9 @@ def link_meta_index(metadata, local_dir):
 
     paths = []
     sizes = []
-    for name, date, time in zip(ethoscope_list, date_list, time_list):
+    for name, date, time_val in zip(ethoscope_list, date_list, time_list):
         try:
-            if np.isnan(time):
+            if np.isnan(time_val):
                 regex = PurePath('*') / name / f'{date}_*' / '*.db'
                 path_lst = local_dir.glob(str(regex))
                 if len(list(path_lst)) >= 1:
@@ -303,7 +303,7 @@ def link_meta_index(metadata, local_dir):
                 else:
                     print(f'{name}_{date} has not been found')
             else:
-                regex = PurePath('*') / name / f'{date}_{time}' / '*.db'
+                regex = PurePath('*') / name / f'{date}_{time_val}' / '*.db'
                 path_lst = local_dir.glob(str(regex))
                 if len(list(path_lst)) >= 1:
                     for p in local_dir.glob(str(regex)):
@@ -313,7 +313,7 @@ def link_meta_index(metadata, local_dir):
                 else:
                     print(f'{name}_{date} has not been found')
         except TypeError:
-            regex = PurePath('*') / name / f'{date}_{time}' / '*.db'
+            regex = PurePath('*') / name / f'{date}_{time_val}' / '*.db'
             path_lst = local_dir.glob(str(regex))
             if len(list(path_lst)) >= 1:
                 for p in local_dir.glob(str(regex)):
@@ -605,7 +605,7 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
                 data = data.drop(columns = ['id'])
             # New format - keep the id column as it's a meaningful primary key
 
-        if reference_hour != None:
+        if reference_hour is not None:
             t = date
             t = t.split(' ')
             hh, mm , ss = map(int, t[1].split(':'))
@@ -625,7 +625,7 @@ def read_single_roi(file, min_time = 0, max_time = float('inf'), reference_hour 
             data = data[(data['is_inferred'] == 0) | (data['is_inferred'] == '0') | (data['has_interacted'] == 1)]
             # check if has_interacted is all false / 0, drop if so
             interacted_list = data['has_interacted'].to_numpy()
-            if (0 == interacted_list[:]).all() == True:
+            if (0 == interacted_list[:]).all():
                 data = data.drop(columns = ['has_interacted'])
                 # data = data.drop(columns = ['is_inferred'])
         
