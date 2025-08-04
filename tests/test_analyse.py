@@ -180,32 +180,46 @@ class TestCumsumDelta:
     @pytest.mark.unit
     def test_cumsum_delta_success(self, sample_ethoscope_data):
         """Test successful cumulative delta calculation."""
-        result = cumsum_delta(sample_ethoscope_data, 'xy_dist_log10x1000')
+        # Add required columns for cumsum_delta function
+        test_data = sample_ethoscope_data.copy()
+        test_data['activity_count'] = 0  # Add required activity_count column
+        test_data['deltaT'] = 1.0  # Add required deltaT column
+        
+        result = cumsum_delta(test_data, 10)  # Pass integer immobility threshold
         
         assert isinstance(result, pd.DataFrame)
-        assert 'xy_dist_log10x1000_cumdelta' in result.columns
-        assert len(result) == len(sample_ethoscope_data)
+        assert 'cumsum_delta' in result.columns
+        assert 'new_has_interacted' in result.columns
 
     @pytest.mark.unit
     def test_cumsum_delta_custom_column_name(self, sample_ethoscope_data):
-        """Test cumulative delta with custom column name."""
-        result = cumsum_delta(sample_ethoscope_data, 'xy_dist_log10x1000', 'custom_cumdelta')
+        """Test cumulative delta with different threshold."""
+        # Add required columns for cumsum_delta function
+        test_data = sample_ethoscope_data.copy()
+        test_data['activity_count'] = 0
+        test_data['deltaT'] = 2.0
+        
+        result = cumsum_delta(test_data, 20)  # Different threshold
         
         assert isinstance(result, pd.DataFrame)
-        assert 'custom_cumdelta' in result.columns
+        assert 'cumsum_delta' in result.columns
 
     @pytest.mark.unit
     def test_cumsum_delta_missing_column(self, sample_ethoscope_data):
-        """Test cumulative delta with missing column."""
+        """Test cumulative delta with missing required columns."""
+        # Missing activity_count column should raise KeyError
         with pytest.raises(KeyError):
-            cumsum_delta(sample_ethoscope_data, 'nonexistent_column')
+            cumsum_delta(sample_ethoscope_data, 10)
 
     @pytest.mark.unit
     def test_cumsum_delta_empty_data(self):
         """Test cumulative delta with empty data."""
-        empty_data = pd.DataFrame(columns=['xy_dist_log10x1000'])
+        empty_data = pd.DataFrame(columns=['activity_count', 'deltaT'])
         
-        result = cumsum_delta(empty_data, 'xy_dist_log10x1000')
+        result = cumsum_delta(empty_data, 10)
+        
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
         
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 0
