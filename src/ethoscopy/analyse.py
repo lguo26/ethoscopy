@@ -288,8 +288,15 @@ def _find_runs(mov: np.ndarray, time: np.ndarray, dt: np.ndarray) -> pd.DataFram
     """
     # Handle empty arrays
     if len(mov) == 0:
-        return pd.DataFrame({"t": time, "moving": mov, "activity_count": np.array([], dtype=int), "deltaT": dt})
-    
+        return pd.DataFrame(
+            {
+                "t": time,
+                "moving": mov,
+                "activity_count": np.array([], dtype=int),
+                "deltaT": dt,
+            }
+        )
+
     _, _, lengths = rle(mov)
     count_list = np.concatenate([[c] * cnt for c, cnt in enumerate(lengths)], dtype=int)
     return pd.DataFrame(
