@@ -1,7 +1,7 @@
 # ethoscopy 
 
 [![CI/CD Pipeline](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/gilestrolab/ethoscopy/graph/badge.svg?token=8f3c15f3-f411-4897-b49a-c079e86a23b5)](https://codecov.io/gh/gilestrolab/ethoscopy)
+[![codecov](https://codecov.io/gh/gilestrolab/ethoscopy/branch/main/graph/badge.svg)](https://codecov.io/gh/gilestrolab/ethoscopy)
 [![PyPI version](https://img.shields.io/pypi/v/ethoscopy.svg)](https://pypi.org/project/ethoscopy/)
 [![Python versions](https://img.shields.io/pypi/pyversions/ethoscopy.svg)](https://pypi.org/project/ethoscopy/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
