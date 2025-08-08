@@ -441,12 +441,10 @@ def load_ethoscope(
     roi_data_list = []
 
     # Group ROIs by database file to reuse connections and cache metadata
-    db_cache = {}
     grouped_metadata = metadata.groupby("path")
 
     # iterate over each database file
     for db_path, group in grouped_metadata:
-        db_metadata_cache = None
         conn = None
 
         try:
