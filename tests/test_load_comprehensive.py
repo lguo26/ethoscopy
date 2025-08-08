@@ -456,7 +456,9 @@ class TestReadSingleRoiOptimized:
         return conn, roi_df, var_df, date_formatted
 
     @pytest.mark.unit
-    def test_read_single_roi_optimized_success(self, mock_sqlite_db, mock_db_connection):
+    def test_read_single_roi_optimized_success(
+        self, mock_sqlite_db, mock_db_connection
+    ):
         """Test successful optimized single ROI reading."""
         conn, roi_df, var_df, date_formatted = mock_db_connection
 
@@ -494,8 +496,12 @@ class TestReadSingleRoiOptimized:
         )
 
         # Function prints warning but doesn't raise exception for missing ROI
-        result = read_single_roi_optimized(file_info, conn, roi_df, var_df, date_formatted)
-        assert result is None or len(result) == 0  # Should return empty/None for missing ROI
+        result = read_single_roi_optimized(
+            file_info, conn, roi_df, var_df, date_formatted
+        )
+        assert (
+            result is None or len(result) == 0
+        )  # Should return empty/None for missing ROI
 
     @pytest.mark.unit
     def test_read_single_roi_optimized_invalid_time_range(
