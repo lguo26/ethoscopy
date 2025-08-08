@@ -4,11 +4,12 @@ Test the scientifically corrected velocity threshold (0.933) for ETHOSCOPE_018.
 Compare sleep patterns with ETHOSCOPE_072 using default threshold (1.0).
 """
 
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from ethoscopy.load import load_ethoscope, link_meta_index
-from ethoscopy.analyse import sleep_annotation, max_velocity_detector
+import numpy as np
+import pandas as pd
+
+from ethoscopy.analyse import max_velocity_detector, sleep_annotation
+from ethoscopy.load import link_meta_index, load_ethoscope
 
 
 def test_corrected_threshold():

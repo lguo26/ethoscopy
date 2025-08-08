@@ -1,15 +1,13 @@
-import pandas as pd
-import numpy as np
+from functools import partial
+from math import floor
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import seaborn as sns
 
-from math import floor
-from functools import partial
-
 from ethoscopy.behavpy_draw import behavpy_draw
-
 from ethoscopy.misc.circadian_bars import circadian_bars
 from ethoscopy.misc.hmm_functions import hmm_pct_state
 
@@ -190,7 +188,6 @@ class behavpy_seaborn(behavpy_draw):
         fig, ax = plt.subplots(figsize=figsize)
 
         for data, name, col in zip(d_list, facet_labels, col_list):
-
             gb_df, t_min, t_max, col, _ = self._generate_overtime_plot(
                 data=data,
                 name=name,
@@ -377,7 +374,6 @@ class behavpy_seaborn(behavpy_draw):
             axes = [axes]
 
         for ax, var in zip(axes, variable):
-
             plot_column = f"{var}_{fun}"
 
             y_range, dtick = self._check_boolean(list(self[var]))
@@ -386,7 +382,6 @@ class behavpy_seaborn(behavpy_draw):
                 ax.set_ylim(y_range)
 
             if facet_col:
-
                 sns.stripplot(
                     data=grouped_data,
                     x=facet_col,
@@ -731,7 +726,6 @@ class behavpy_seaborn(behavpy_draw):
         fig, ax = plt.subplots(figsize=figsize)
 
         if facet_col:
-
             sns.stripplot(
                 data=grouped_data,
                 x="phase",
@@ -814,7 +808,6 @@ class behavpy_seaborn(behavpy_draw):
 
     @staticmethod
     def _plot_single_actogram(dt, figsize, days, title, day_length, size):
-
         # (0,0) means automatic size
         if figsize == (0, 0):
             figsize = (10, len(days) / 2)
@@ -823,7 +816,6 @@ class behavpy_seaborn(behavpy_draw):
         axes[0].set_title(title, size=size)
 
         for ax, day in zip(axes, days[:-1]):
-
             subset = dt[dt["day"].isin([day, day + 1])].copy()
             subset.loc[subset["day"] == day + 1, "hours"] += 24
 
@@ -946,12 +938,10 @@ class behavpy_seaborn(behavpy_draw):
         )
 
         if facet_col:
-
             sub_title_size = 20
 
             figs = []
             for subplot in facet_arg:
-
                 dt = data.loc[data[facet_col] == subplot]
                 title = "%s - %s" % (title, subplot)
                 fig = self._plot_single_actogram(
@@ -971,7 +961,6 @@ class behavpy_seaborn(behavpy_draw):
             combined_fig = plt.figure(figsize=figsize)
 
             for pos, f in enumerate(figs):
-
                 c.append(combined_fig.add_subplot(rows, cols, pos + 1))
                 c[-1].axis("off")  # Turn off axis
                 c[-1].imshow(self._fig2img(f))
@@ -1049,7 +1038,6 @@ class behavpy_seaborn(behavpy_draw):
 
         figs = []
         for subplot, label in zip(facet_arg, title_list):
-
             dt = data.loc[data["id"] == subplot]
             subtitle = "%s" % (label)
             fig = self._plot_single_actogram(
@@ -1068,7 +1056,6 @@ class behavpy_seaborn(behavpy_draw):
 
         combined_fig = plt.figure(figsize=figsize)
         for pos, f in enumerate(figs):
-
             c.append(combined_fig.add_subplot(rows, cols, pos + 1))
             c[-1].axis("off")  # Turn off axis
             c[-1].imshow(self._fig2img(f))
@@ -1592,7 +1579,6 @@ class behavpy_seaborn(behavpy_draw):
             fig.set_size_inches(figsize)
 
         for hue in h_order:
-
             sub_df = grouped_data[grouped_data["label_col"] == hue]
             # if no data, such as no false stimuli, skip the plotting
             if len(sub_df) == 0:
@@ -1833,7 +1819,6 @@ class behavpy_seaborn(behavpy_draw):
         fig, ax = plt.subplots(figsize=figsize)
 
         for data, name, col in zip(d_list, facet_labels, self._get_colours(d_list)):
-
             gb_df, _, _, col, _ = self._generate_overtime_plot(
                 data=data,
                 name=name,
@@ -2205,7 +2190,6 @@ class behavpy_seaborn(behavpy_draw):
 
         # iterate over the faceted column. Decode and augment to be ready to plot
         for c, arg in enumerate(facet_arg):
-
             if arg is not None:
                 sub_df = df.xmv(facet_col, arg)
             else:
@@ -2265,7 +2249,6 @@ class behavpy_seaborn(behavpy_draw):
         figs = []
 
         for c, state in enumerate(labels):
-
             plot_df = pd.concat(states_dict[state])
             plot_m = pd.DataFrame(
                 data={
@@ -3014,7 +2997,6 @@ class behavpy_seaborn(behavpy_draw):
         max_t = []
 
         for ax, data in enumerate(decoded):
-
             print(f"Plotting: {data.index[0]}")
 
             data["bin"] = data["bin"] / (60 * 60)
@@ -3324,7 +3306,6 @@ class behavpy_seaborn(behavpy_draw):
             fig.set_size_inches(figsize)
 
         for hue in h_order:
-
             sub_df = grouped_data[grouped_data["label_col"] == hue]
 
             plt.plot(

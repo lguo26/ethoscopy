@@ -1,15 +1,12 @@
-import pandas as pd
 import numpy as np
-
+import pandas as pd
+from astropy.timeseries import LombScargle
 from pywt import cwt
-
-from scipy.stats import chi2
-from scipy.special import chdtri
 
 # from scipy.signal import welch as internal_welch
 from scipy.fftpack import fft
-
-from astropy.timeseries import LombScargle
+from scipy.special import chdtri
+from scipy.stats import chi2
 
 
 def chi_squared(

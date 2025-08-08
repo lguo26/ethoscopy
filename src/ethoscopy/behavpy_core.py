@@ -1,20 +1,17 @@
-import pandas as pd
-import numpy as np
 import pickle
-
-from math import floor
 from functools import partial
+from math import floor
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from tabulate import tabulate
+import numpy as np
+import pandas as pd
 from hmmlearn import hmm
-
 from scipy.signal import find_peaks
 from scipy.stats import zscore
+from tabulate import tabulate
 
-from ethoscopy.misc.general_functions import concat, rle
 from ethoscopy.analyse import max_velocity_detector
-
-from typing import Optional, List, Union, Tuple, Dict, Any, Callable
+from ethoscopy.misc.general_functions import concat, rle
 
 
 class behavpy_core(pd.DataFrame):
@@ -1035,7 +1032,6 @@ class behavpy_core(pd.DataFrame):
         bout_times.set_index(old_index, inplace=True)
 
         if as_hist is True:
-
             filtered = bout_times[bout_times[var_name] == asleep]
             filtered["duration_bin"] = filtered["duration"].map(
                 lambda d: bin_width * floor(d / bin_width)
@@ -2570,7 +2566,6 @@ class behavpy_core(pd.DataFrame):
         ant_df = pd.DataFrame()
 
         for phase in ["Lights On", "Lights Off"]:
-
             d = data.t_filter(
                 start_time=filter_dict[phase][0],
                 end_time=filter_dict[phase][2],
@@ -2683,7 +2678,6 @@ class behavpy_core(pd.DataFrame):
             raise TypeError("per_range should be a list or nummpy array, please change")
 
         if isinstance(per_range, list) or isinstance(per_range, np.array):
-
             if len(per_range) != 2:
                 raise TypeError(
                     "The period range can only be a tuple/array of length 2, please amend"

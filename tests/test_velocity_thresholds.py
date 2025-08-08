@@ -4,11 +4,12 @@ Empirical testing of velocity thresholds for sleep annotation.
 Tests different velocity_threshold values to find optimal parameters for each machine.
 """
 
-import pandas as pd
-import numpy as np
-from ethoscopy.load import load_ethoscope, link_meta_index
-from ethoscopy.analyse import sleep_annotation
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from ethoscopy.analyse import sleep_annotation
+from ethoscopy.load import link_meta_index, load_ethoscope
 
 
 def test_velocity_thresholds():
@@ -42,7 +43,6 @@ def test_velocity_thresholds():
         (animals_018, "ETHOSCOPE_018", 4.05),
         (animals_072, "ETHOSCOPE_072", 3.56),
     ]:
-
         print(f"\n{machine_name} (FPS: {fps:.2f}):")
 
         for vel_threshold in velocity_thresholds:

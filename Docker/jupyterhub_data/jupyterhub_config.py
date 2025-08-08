@@ -29,21 +29,21 @@ class ConfigUserSpawner(LocalProcessSpawner):
     def make_preexec_fn(self, name):
         """Don't try to switch users - run everything as current user"""
         return None
-    
+
     def user_env(self, env):
         """Set user environment without system user lookup"""
         env = env.copy()
         home_dir = f'/home/{self.user.name}'
-        
+
         # Ensure home directory exists with proper permissions
         os.makedirs(home_dir, mode=0o755, exist_ok=True)
-        
+
         # Set environment variables
         env['USER'] = self.user.name
         env['HOME'] = home_dir
         env['SHELL'] = '/bin/bash'
         env['LOGNAME'] = self.user.name
-        
+
         return env
 
 c.JupyterHub.spawner_class = ConfigUserSpawner

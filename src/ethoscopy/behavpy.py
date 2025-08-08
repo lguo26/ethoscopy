@@ -50,7 +50,6 @@ def behavpy(
     """
 
     if canvas == "plotly":
-
         # If no palette is privided choose the defaults
         if palette is None:
             palette = "Safe"
@@ -62,7 +61,6 @@ def behavpy(
         )
 
     elif canvas == "seaborn":
-
         # If no palette is privided choose the defaults
         if palette is None:
             palette = "deep"

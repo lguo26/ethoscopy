@@ -1,16 +1,14 @@
-import pandas as pd
-import numpy as np
+from functools import partial
+from math import ceil, floor
 
+import numpy as np
+import pandas as pd
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
-
-from math import floor, ceil
 from scipy.stats import zscore
-from functools import partial
 
 from ethoscopy.behavpy_draw import behavpy_draw
 from ethoscopy.behavpy_seaborn import behavpy_seaborn
-
 from ethoscopy.misc.circadian_bars import circadian_bars
 from ethoscopy.misc.hmm_functions import hmm_pct_state
 
@@ -520,7 +518,6 @@ class behavpy_plotly(behavpy_draw):
 
         if facet_col:
             for lab in facet_labels:
-
                 sub_df = grouped_data[grouped_data[facet_col] == lab]
 
                 if len(sub_df) == 0:
@@ -694,7 +691,6 @@ class behavpy_plotly(behavpy_draw):
         domains = np.arange(0, 1 + (1 / len(facet_labels)), 1 / len(facet_labels))
 
         for c, lab in enumerate(facet_labels):
-
             if facet_col:
                 sub_df = grouped_data[grouped_data[facet_col] == lab]
             else:
@@ -705,7 +701,6 @@ class behavpy_plotly(behavpy_draw):
                 continue
 
             for c2, (var, secondary) in enumerate(zip(variables, bool_list)):
-
                 if facet_col is None:
                     lab = var  # have variable colour change if no facet
 
@@ -758,7 +753,7 @@ class behavpy_plotly(behavpy_draw):
 
         axis_counter = 1
         for i in range(len(facet_labels) * (len(variables) * 2)):
-            if i % ((len(variables) * 2)) == 0 and i != 0:
+            if i % (len(variables) * 2) == 0 and i != 0:
                 axis_counter += 1
             fig["data"][i]["xaxis"] = f"x{axis_counter}"
 
@@ -857,7 +852,6 @@ class behavpy_plotly(behavpy_draw):
         domains = np.arange(0, 2, 1 / 2)
 
         for c, phase in enumerate(["light", "dark"]):
-
             sub_df = grouped_data[grouped_data["phase"] == phase]
 
             if len(sub_df) == 0:
@@ -866,7 +860,6 @@ class behavpy_plotly(behavpy_draw):
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     mean, median, q3, q1, zlist = self._zscore_bootstrap(
@@ -1009,7 +1002,6 @@ class behavpy_plotly(behavpy_draw):
         domains = np.arange(0, 2, 1 / 2)
 
         for c, phase in enumerate(["Lights On", "Lights Off"]):
-
             sub_df = grouped_data[grouped_data["phase"] == phase]
 
             if len(sub_df) == 0:
@@ -1018,7 +1010,6 @@ class behavpy_plotly(behavpy_draw):
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     mean, median, q3, q1, zlist = self._zscore_bootstrap(
@@ -1602,7 +1593,6 @@ class behavpy_plotly(behavpy_draw):
         self._plot_xlayout(fig, xrange=False, t0=False, dtick=False, xlabel="")
 
         for lab in h_order:
-
             sub_df = grouped_data[grouped_data["facet_col"] == lab]
             if len(sub_df) == 0:
                 print(f"Group {lab} has no values and cannot be plotted")
@@ -1861,7 +1851,6 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for hue in h_order:
-
             sub_df = grouped_data[grouped_data["label_col"] == hue]
             # if no data, such as no false stimuli, skip the plotting
             if len(sub_df) == 0:
@@ -2040,7 +2029,6 @@ class behavpy_plotly(behavpy_draw):
         row_list = [item for sublist in row_list for item in sublist]
 
         for arg, col, row in zip(facet_arg, col_list, row_list):
-
             d = data.xmv("id", arg)
 
             fig.append_trace(
@@ -2207,7 +2195,6 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for data, name, col in zip(d_list, facet_labels, col_list):
-
             if len(data) == 0:
                 print(f"Group {name} has no values and cannot be plotted")
                 continue
@@ -2583,7 +2570,6 @@ class behavpy_plotly(behavpy_draw):
         for c, (arg, n, h, b) in enumerate(
             zip(facet_arg, facet_labels, h_list, b_list)
         ):
-
             if arg is not None:
                 sub_df = df.xmv(facet_col, arg)
             else:
@@ -2615,7 +2601,6 @@ class behavpy_plotly(behavpy_draw):
             t_range = [t_min, t_max]
 
             for i, (lab, row, col) in enumerate(zip(labels, row_list, col_list)):
-
                 column = f"state_{i}"
 
                 gb_df = analysed_df.groupby("t").agg(
@@ -2828,12 +2813,10 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for c, state in enumerate(labels):
-
             sub_df = grouped_data[grouped_data["state"] == state]
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     if col_uniform:
@@ -3013,12 +2996,10 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for c, state in enumerate(labels):
-
             sub_df = grouped_data[grouped_data["state"] == state]
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     if col_uniform:
@@ -3201,12 +3182,10 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for c, state in enumerate(labels):
-
             sub_df = grouped_data[grouped_data["state"] == state]
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     if col_uniform:
@@ -3388,12 +3367,10 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for c, state in enumerate(labels):
-
             sub_df = grouped_data[grouped_data["state"] == state]
 
             if facet_col:
                 for lab in facet_labels:
-
                     sub_sub_df = sub_df[sub_df[facet_col] == lab]
 
                     if col_uniform:
@@ -3583,7 +3560,6 @@ class behavpy_plotly(behavpy_draw):
         max_t = []
 
         for c, (df, b) in enumerate(zip(decoded, b_list)):
-
             df["colour"] = df["previous_state"].map(colours_index)
             id = df.first_valid_index()
             print(f"Plotting: {id}")
@@ -3798,11 +3774,9 @@ class behavpy_plotly(behavpy_draw):
         )
 
         for c, (col, state) in enumerate(zip(colours, labels)):
-
             sub_df = grouped_data[grouped_data["state"] == state]
 
             for lab in h_order:
-
                 sub_np = sub_df[plot_column][sub_df[facet_col] == lab].to_numpy()
                 if len(sub_np) == 0:
                     continue  # normally used when no Spon. Mov. is present

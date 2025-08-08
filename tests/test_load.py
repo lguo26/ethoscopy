@@ -2,20 +2,21 @@
 Unit tests for ethoscopy.load module functions.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import sqlite3
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
 import shutil
+import sqlite3
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
 
 from ethoscopy.load import (
     link_meta_index,
     load_ethoscope,
-    read_single_roi,
     load_ethoscope_metadata,
+    read_single_roi,
 )
 
 
@@ -208,7 +209,10 @@ class TestLoadEthoscope:
     def test_load_ethoscope_time_constraints(self, linked_metadata_sample):
         """Test ethoscope loading with time constraints."""
         result = load_ethoscope(
-            linked_metadata_sample, min_time=0, max_time=1, verbose=False  # 1 hour
+            linked_metadata_sample,
+            min_time=0,
+            max_time=1,
+            verbose=False,  # 1 hour
         )
 
         assert isinstance(result, pd.DataFrame)

@@ -1,5 +1,6 @@
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 
 def get_tutorial(data_type: str) -> tuple[pd.DataFrame, pd.DataFrame]:

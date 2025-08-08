@@ -4,20 +4,21 @@ Unit tests for load_ethoscope() optimizations.
 Tests the new database connection caching, metadata caching, and batch processing features.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
+import os
 import sqlite3
 import tempfile
-import os
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
 
 from ethoscopy.load import (
-    load_ethoscope,
-    read_single_roi_optimized,
-    read_single_roi,
     link_meta_index,
+    load_ethoscope,
+    read_single_roi,
+    read_single_roi_optimized,
 )
 
 
@@ -92,7 +93,7 @@ class TestReadSingleROIOptimized:
         for i in range(100):
             cursor.execute(
                 """
-                INSERT INTO ROI_1 (t, x, y, w, h) 
+                INSERT INTO ROI_1 (t, x, y, w, h)
                 VALUES (?, ?, ?, ?, ?)
             """,
                 (i * 1000, np.random.randn(), np.random.randn(), 10, 10),
@@ -305,7 +306,7 @@ class TestLoadEthoscopeOptimizations:
             for j in range(50):
                 cursor.execute(
                     """
-                    INSERT INTO ROI_1 (t, x, y) 
+                    INSERT INTO ROI_1 (t, x, y)
                     VALUES (?, ?, ?)
                 """,
                     (j * 1000, np.random.randn(), np.random.randn()),
@@ -355,8 +356,32 @@ class TestLoadEthoscopeOptimizations:
                 mock_conn = MagicMock()
                 mock_connect.return_value = mock_conn
 
-                # Load ethoscope data
-                result = load_ethoscope(metadata, verbose=False)
+                # Mock the SQL queries to return proper data
+                with patch("pandas.read_sql_query") as mock_sql_query:
+                    # Set up return values for different queries
+                    def sql_side_effect(query, conn):
+                        if "ROI_MAP" in query:
+                            return pd.DataFrame(
+                                {"roi_idx": [1, 2], "w": [100, 100], "h": [100, 100]}
+                            )
+                        elif "VAR_MAP" in query:
+                            return pd.DataFrame(
+                                {
+                                    "var_name": ["x", "y"],
+                                    "functional_type": ["position", "position"],
+                                }
+                            )
+                        elif "date_time" in query:
+                            return pd.DataFrame(
+                                {"value": [1640995200.0]}
+                            )  # Valid timestamp
+                        else:
+                            return pd.DataFrame()
+
+                    mock_sql_query.side_effect = sql_side_effect
+
+                    # Load ethoscope data
+                    result = load_ethoscope(metadata, verbose=False)
 
                 # Should have opened connection only once for the shared database
                 # (Note: in real scenario, this tests the grouping logic)

@@ -2,18 +2,19 @@
 Unit tests for ethoscopy.analyse module functions.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 from unittest.mock import Mock, patch
 
+import numpy as np
+import pandas as pd
+import pytest
+
 from ethoscopy.analyse import (
+    _find_runs,
+    cumsum_delta,
     max_velocity_detector,
+    prep_data_motion_detector,
     sleep_annotation,
     stimulus_response,
-    cumsum_delta,
-    prep_data_motion_detector,
-    _find_runs,
 )
 
 

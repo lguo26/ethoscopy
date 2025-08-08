@@ -1,6 +1,7 @@
-from hmmlearn.hmm import CategoricalHMM
-from pathlib import Path
 import pickle
+from pathlib import Path
+
+from hmmlearn.hmm import CategoricalHMM
 
 
 def get_HMM(sex: str) -> "CategoricalHMM":

@@ -1,8 +1,10 @@
-from typing import Optional, List, Union
-import pandas as pd
-import numpy as np
-from math import floor
 import copy
+from math import floor
+from typing import List, Optional, Union
+
+import numpy as np
+import pandas as pd
+
 from ethoscopy.misc.general_functions import rle
 
 
@@ -382,7 +384,6 @@ def stimulus_response(
     data["velocity"] = data.dist / velocity_correction_coef
 
     if add_false is not False:
-
         if add_false <= 0:
             raise ValueError("add_false must be a positive integer")
         # add a moving column
@@ -585,7 +586,6 @@ def stimulus_prior(
             return d_small
 
     for c, (i, q) in enumerate(zip(start_list, end_list)):
-
         filtered_df = df[df.t.isin(list(range(i, q + 1)))]
         response_data = filtered_df[filtered_df["t_rel"] >= 0]
 

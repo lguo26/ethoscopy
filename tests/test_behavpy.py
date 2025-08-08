@@ -2,10 +2,11 @@
 Unit tests for ethoscopy behavpy classes and core functionality.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
 from unittest.mock import Mock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
 
 import ethoscopy as etho
 from ethoscopy.behavpy_core import behavpy_core

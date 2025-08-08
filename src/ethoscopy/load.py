@@ -1,13 +1,14 @@
+import errno
 import ftplib
 import os
-import pandas as pd
-import numpy as np
-import errno
-import time
 import sqlite3
-from pathlib import Path, PurePosixPath, PurePath
+import time
 from functools import partial
+from pathlib import Path, PurePath, PurePosixPath
 from urllib.parse import urlparse
+
+import numpy as np
+import pandas as pd
 
 from ethoscopy.misc.validate_datetime import validate_datetime
 
@@ -440,6 +441,10 @@ def load_ethoscope(
     # Collect all ROI data in a list for efficient concatenation
     roi_data_list = []
 
+    # Handle empty metadata case
+    if metadata.empty or "path" not in metadata.columns:
+        return pd.DataFrame()
+
     # Group ROIs by database file to reuse connections and cache metadata
     grouped_metadata = metadata.groupby("path")
 
@@ -457,6 +462,8 @@ def load_ethoscope(
             date = pd.read_sql_query(
                 'SELECT value FROM METADATA WHERE field = "date_time"', conn
             )
+            if date.empty:
+                raise ValueError("No date_time found in METADATA table")
             date_formatted = time.strftime(
                 "%Y-%m-%d %H:%M:%S", time.gmtime(float(date.iloc[0].iloc[0]))
             )

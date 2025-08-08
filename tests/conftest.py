@@ -2,15 +2,16 @@
 Pytest configuration and shared fixtures for ethoscopy tests.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
+import os
 import sqlite3
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
-import sys
-import os
+
+import numpy as np
+import pandas as pd
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -110,7 +111,7 @@ def mock_sqlite_db(tmp_path, sample_ethoscope_data):
         CREATE TABLE ROI_MAP (
             roi_idx INTEGER PRIMARY KEY,
             x INTEGER,
-            y INTEGER, 
+            y INTEGER,
             w INTEGER,
             h INTEGER
         )

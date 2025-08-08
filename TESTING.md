@@ -38,7 +38,7 @@ python run_tests.py
 Tests are organized with markers:
 
 - `@pytest.mark.unit` - Fast unit tests for individual functions
-- `@pytest.mark.integration` - Integration tests for workflows  
+- `@pytest.mark.integration` - Integration tests for workflows
 - `@pytest.mark.slow` - Tests that take longer to run
 - `@pytest.mark.requires_data` - Tests needing actual ethoscope data
 
@@ -48,7 +48,7 @@ Run specific categories:
 pytest -m unit
 
 # Only integration tests
-pytest -m integration  
+pytest -m integration
 
 # Skip slow tests
 pytest -m "not slow"
@@ -100,7 +100,7 @@ Key fixtures available in all tests:
 ### Test Naming
 
 - Test files: `test_*.py`
-- Test classes: `Test*`  
+- Test classes: `Test*`
 - Test functions: `test_*`
 
 ## Writing Tests
@@ -112,7 +112,7 @@ Key fixtures available in all tests:
 def test_function_success(self, fixture_name):
     """Test successful function execution."""
     result = function_under_test(input_data)
-    
+
     assert isinstance(result, expected_type)
     assert len(result) > 0
     assert 'expected_column' in result.columns
@@ -126,12 +126,12 @@ def test_complete_workflow(self, sample_metadata_csv, tmp_path):
     """Test complete workflow from metadata to analysis."""
     # Setup test data structure
     setup_test_environment(tmp_path)
-    
+
     # Execute workflow
     linked_data = link_meta_index(sample_metadata_csv, tmp_path)
     loaded_data = load_ethoscope(linked_data)
     analyzed_data = sleep_annotation(loaded_data)
-    
+
     # Verify results
     assert len(analyzed_data) > 0
     assert 'asleep' in analyzed_data.columns
@@ -156,7 +156,7 @@ def test_load_function_with_mock_db(self, mock_sqlite_db):
     \"\"\"Test loading with mocked database.\"\"\"
     file_info = create_file_info(mock_sqlite_db)
     result = read_single_roi(file_info)
-    
+
     assert result is not None
     assert isinstance(result, pd.DataFrame)
 ```
@@ -171,7 +171,7 @@ def test_analysis_function_edge_cases(self):
     # Test with empty data
     empty_result = analysis_function(pd.DataFrame())
     assert len(empty_result) == 0
-    
+
     # Test with all-same values
     constant_data = create_constant_data()
     constant_result = analysis_function(constant_data)

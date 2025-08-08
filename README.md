@@ -1,4 +1,4 @@
-# ethoscopy 
+# ethoscopy
 
 [![CI/CD Pipeline](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gilestrolab/ethoscopy/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/gilestrolab/ethoscopy/branch/main/graph/badge.svg)](https://codecov.io/gh/gilestrolab/ethoscopy)
@@ -25,7 +25,7 @@ This new update sees a whole refactoring of the code base to make everything mor
 
 The latest update is backwards compatible with all previously saved behavpy dataframes. However, post loading they should be re-initiated as the new behavpy class. See in the getting started a demonstration of what to do.
 
-Addtionally, the concat method ( behavpy_object.concat() ) for combining dataframes has been shifted to a function that is imported automatically. Call etho.concat(df1, df2) or etho.concat(*[df1, df2]) instead. There are other minor changes to method and argument names, which are reflected in their docstrings and in the tutorial. 
+Addtionally, the concat method ( behavpy_object.concat() ) for combining dataframes has been shifted to a function that is imported automatically. Call etho.concat(df1, df2) or etho.concat(*[df1, df2]) instead. There are other minor changes to method and argument names, which are reflected in their docstrings and in the tutorial.
 
 ## Getting Started
 

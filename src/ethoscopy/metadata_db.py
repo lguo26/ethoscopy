@@ -21,17 +21,17 @@
 #  MA 02110-1301, USA.
 #
 #
-import pandas as pd
-import fnmatch
-import os
-from math import floor, log
-import re
-import json
 import datetime
+import fnmatch
+import json
+import os
+import re
+from math import floor, log
+
+import pandas as pd
 
 
 class db_organiser:
-
     _csv_filename = "ethoscope_db.csv"
     db_list = []
 
@@ -128,7 +128,6 @@ class db_organiser:
         index_file = os.path.join(self.db_path, filename)
 
         with open(index_file, "w") as ind:
-
             for db in self._update_db_list():
                 fs = os.stat(db).st_size
                 ind.write('"%s", %s\r\n' % (db, fs))
@@ -190,7 +189,6 @@ class db_organiser:
 
 
 class metadata_handler:
-
     _DBFOLDER = "./db/"
 
     def __init__(
@@ -203,7 +201,6 @@ class metadata_handler:
         description="",
         separator="auto",
     ):
-
         self.filename = filename
         _, extension = os.path.splitext(filename)
 
@@ -347,7 +344,6 @@ class metadata_handler:
 
 
 class db_crawler:
-
     _DBFOLDER = "./db"
 
     def __init__(self):
@@ -416,7 +412,6 @@ class db_crawler:
 
 
 if __name__ == "__main__":
-
     datapath = "/mnt/data/results"
     metadata_filename = "/home/gg/Downloads/METADATA.txt"
 

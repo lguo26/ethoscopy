@@ -4,6 +4,14 @@ Ethoscopy: A Python package for behavioral analysis of Drosophila data.
 This package provides tools for loading, analyzing and visualizing ethoscope data.
 """
 
+import importlib.metadata
+
+from ethoscopy.analyse import (
+    max_velocity_detector,
+    sleep_annotation,
+    stimulus_prior,
+    stimulus_response,
+)
 from ethoscopy.behavpy import behavpy
 from ethoscopy.load import (
     download_from_remote_dir,
@@ -11,15 +19,7 @@ from ethoscopy.load import (
     load_ethoscope,
     load_ethoscope_metadata,
 )
-from ethoscopy.analyse import (
-    max_velocity_detector,
-    sleep_annotation,
-    stimulus_response,
-    stimulus_prior,
-)
 from ethoscopy.misc.general_functions import concat
-
-import importlib.metadata
 
 __version__ = importlib.metadata.version("ethoscopy")
 

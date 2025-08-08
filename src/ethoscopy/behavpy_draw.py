@@ -1,23 +1,22 @@
-import numpy as np
-import pandas as pd
-
-import seaborn as sns
-from plotly.express.colors import qualitative
-from colour import Color
-from math import sqrt, floor, ceil
-from scipy.stats import zscore
-from functools import partial
-
 # fig to img
 import io
+from functools import partial
+from math import ceil, floor, sqrt
+
+import numpy as np
+import pandas as pd
 import PIL
+import seaborn as sns
+from colour import Color
+from plotly.express.colors import qualitative
+from scipy.stats import zscore
 
 from ethoscopy.behavpy_core import behavpy_core
-from ethoscopy.misc.general_functions import concat, bootstrap
-from ethoscopy.misc.hmm_functions import (
-    hmm_pct_transition,
+from ethoscopy.misc.general_functions import bootstrap, concat
+from ethoscopy.misc.hmm_functions import (  # , hmm_pct_state
     hmm_mean_length,
-)  # , hmm_pct_state
+    hmm_pct_transition,
+)
 
 
 class behavpy_draw(behavpy_core):
@@ -313,7 +312,6 @@ class behavpy_draw(behavpy_core):
         pl_len = len(plot_list)
 
         if self.canvas == "plotly":
-
             if pl_len <= len(getattr(qualitative, self.attrs["sh_pal"])):
                 return getattr(qualitative, self.attrs["sh_pal"])
             elif pl_len <= len(getattr(qualitative, self.attrs["lg_pal"])):
@@ -469,7 +467,6 @@ class behavpy_draw(behavpy_core):
         assert isinstance(path, str)
 
         if self.canvas == "plotly":
-
             if path.endswith(".html"):
                 fig.write_html(path)
             elif width is None and height is None:
@@ -479,7 +476,6 @@ class behavpy_draw(behavpy_core):
             print(f"Saved to {path}")
 
         if self.canvas == "seaborn":
-
             fig.savefig(path, bbox_inches="tight")
             print(f"Saved to {path}")
 

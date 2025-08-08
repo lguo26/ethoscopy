@@ -1,6 +1,7 @@
-import plotly.graph_objs as go
 from itertools import cycle
 from typing import Union
+
+import plotly.graph_objs as go
 
 
 def fancy_range(start, stop, steps=(1,)):
