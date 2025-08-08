@@ -47,7 +47,7 @@ repos:
     hooks:
       - id: pytest-unit
         name: pytest-unit
-        entry: /home/gg/Code/ethoscopy/.venv/bin/python -m pytest tests/ -m "unit" -v
+        entry: .venv/bin/python -m pytest tests/ -m "unit" -v
         language: system
         pass_filenames: false
         always_run: true
@@ -55,7 +55,7 @@ repos:
 
       - id: pytest-fast
         name: pytest-fast
-        entry: /home/gg/Code/ethoscopy/.venv/bin/python -m pytest tests/ -m "not slow" -v --tb=short
+        entry: .venv/bin/python -m pytest tests/ -m "not slow" -v --tb=short
         language: system
         pass_filenames: false
         always_run: true
