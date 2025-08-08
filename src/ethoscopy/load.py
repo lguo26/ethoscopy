@@ -437,69 +437,113 @@ def load_ethoscope(
     max_time = max_time * 60 * 60
     min_time = min_time * 60 * 60
 
-    data = pd.DataFrame()
+    # Collect all ROI data in a list for efficient concatenation
+    roi_data_list = []
 
-    # iterate over the ROI of each ethoscope in the metadata df
-    for i in range(len(metadata.index)):
+    # Group ROIs by database file to reuse connections and cache metadata
+    db_cache = {}
+    grouped_metadata = metadata.groupby("path")
+
+    # iterate over each database file
+    for db_path, group in grouped_metadata:
+        db_metadata_cache = None
+        conn = None
+
         try:
-            if verbose is True:
-                print(
-                    "Loading ROI_{} from {}".format(
-                        metadata["region_id"].iloc[i], metadata["machine_name"].iloc[i]
-                    )
-                )
-            roi_1 = read_single_roi(
-                file=metadata.iloc[i, :],
-                min_time=min_time,
-                max_time=max_time,
-                reference_hour=reference_hour,
-                cache=cache,
+            # Open connection once per database file
+            conn = sqlite3.connect(db_path)
+
+            # Cache metadata queries that are the same for all ROIs in this database
+            roi_df = pd.read_sql_query("SELECT * FROM ROI_MAP", conn)
+            var_df = pd.read_sql_query("SELECT * FROM VAR_MAP", conn)
+            date = pd.read_sql_query(
+                'SELECT value FROM METADATA WHERE field = "date_time"', conn
+            )
+            date_formatted = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.gmtime(float(date.iloc[0].iloc[0]))
             )
 
-            if roi_1 is None:
-                if verbose is True:
-                    print(
-                        "ROI_{} from {} was unable to load due to an error formatting roi".format(
-                            metadata["region_id"].iloc[i],
-                            metadata["machine_name"].iloc[i],
+            # Process each ROI in this database
+            for i in group.index:
+                file_info = metadata.iloc[metadata.index.get_loc(i), :]
+
+                try:
+                    if verbose is True:
+                        print(
+                            "Loading ROI_{} from {}".format(
+                                file_info["region_id"], file_info["machine_name"]
+                            )
                         )
+
+                    # Use optimized single ROI reader with cached connection and metadata
+                    roi_1 = read_single_roi_optimized(
+                        file_info,
+                        conn,
+                        roi_df,
+                        var_df,
+                        date_formatted,
+                        min_time,
+                        max_time,
+                        reference_hour,
+                        cache,
                     )
-                continue
 
-            if FUN is not None:
-                roi_1 = FUN(roi_1)
+                    if roi_1 is None:
+                        if verbose is True:
+                            print(
+                                "ROI_{} from {} was unable to load due to an error formatting roi".format(
+                                    file_info["region_id"], file_info["machine_name"]
+                                )
+                            )
+                        continue
 
-            if roi_1 is None:
-                if verbose is True:
-                    print(
-                        "ROI_{} from {} was unable to load due to an error in applying the function".format(
-                            metadata["region_id"].iloc[i],
-                            metadata["machine_name"].iloc[i],
+                    if FUN is not None:
+                        roi_1 = FUN(roi_1)
+
+                    if roi_1 is None:
+                        if verbose is True:
+                            print(
+                                "ROI_{} from {} was unable to load due to an error in applying the function".format(
+                                    file_info["region_id"], file_info["machine_name"]
+                                )
+                            )
+                        continue
+
+                    # Check if 'id' column already exists, if not insert it
+                    if "id" not in roi_1.columns:
+                        roi_1.insert(0, "id", file_info["id"])
+                    else:
+                        # Replace existing id with the one from metadata for consistency
+                        roi_1["id"] = file_info["id"]
+
+                    # Add to list instead of concatenating in loop
+                    roi_data_list.append(roi_1)
+
+                except Exception as e:
+                    if verbose is True:
+                        print(
+                            "ROI_{} from {} was unable to load due to an error loading roi: {}".format(
+                                file_info["region_id"],
+                                file_info["machine_name"],
+                                str(e),
+                            )
                         )
-                    )
-                continue
+                        import traceback
 
-            # Check if 'id' column already exists, if not insert it
-            if "id" not in roi_1.columns:
-                roi_1.insert(0, "id", metadata["id"].iloc[i])
-            else:
-                # Replace existing id with the one from metadata for consistency
-                roi_1["id"] = metadata["id"].iloc[i]
-            data = pd.concat([data, roi_1], ignore_index=True)
-        except Exception as e:
-            if verbose is True:
-                print(
-                    "ROI_{} from {} was unable to load due to an error loading roi: {}".format(
-                        metadata["region_id"].iloc[i],
-                        metadata["machine_name"].iloc[i],
-                        str(e),
-                    )
-                )
-                import traceback
+                        print("Full traceback:")
+                        traceback.print_exc()
+                    continue
 
-                print("Full traceback:")
-                traceback.print_exc()
-            continue
+        finally:
+            # Close connection when done with this database
+            if conn:
+                conn.close()
+
+    # Concatenate all data at once for much better performance
+    if roi_data_list:
+        data = pd.concat(roi_data_list, ignore_index=True)
+    else:
+        data = pd.DataFrame()
 
     return data
 
@@ -765,3 +809,109 @@ def read_single_roi(
     finally:
         if "conn" in locals():
             conn.close()
+
+
+def read_single_roi_optimized(
+    file,
+    conn,
+    roi_df,
+    var_df,
+    date_formatted,
+    min_time=0,
+    max_time=float("inf"),
+    reference_hour=None,
+    cache=None,
+):
+    """
+    Optimized version of read_single_roi that reuses database connections and cached metadata.
+
+    Args:
+        file: File metadata row
+        conn: Reused SQLite connection
+        roi_df: Cached ROI_MAP data
+        var_df: Cached VAR_MAP data
+        date_formatted: Pre-formatted date string
+        min_time, max_time, reference_hour, cache: Same as read_single_roi
+    """
+    if min_time > max_time:
+        raise ValueError("Error: min_time is larger than max_time")
+
+    if cache is not None:
+        cache_name = "cached_{}_{}_{}.pkl".format(
+            file["machine_id"], file["region_id"], file["date"]
+        )
+        path = Path(cache) / Path(cache_name)
+        if path.exists():
+            data = pd.read_pickle(path)
+            return data
+
+    try:
+        # Use cached ROI data instead of querying
+        roi_row = roi_df[roi_df["roi_idx"] == file["region_id"]]
+
+        if len(roi_row.index) < 1:
+            available_rois = roi_df["roi_idx"].tolist()
+            raise ValueError(
+                f'ROI {file["region_id"]} does not exist. Available ROIs: {available_rois}'
+            )
+
+        # Check if ROI table exists (this still requires a query but much faster than full table read)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (f'ROI_{file["region_id"]}',),
+        )
+        if not cursor.fetchone():
+            raise ValueError(
+                f"ROI table ROI_{file['region_id']} does not exist in database"
+            )
+
+        # Use pre-formatted date instead of querying again
+        date = date_formatted
+
+        if max_time == float("inf"):
+            max_time_condtion = ""
+        else:
+            max_time_condtion = "AND t < {}".format(max_time * 1000)
+
+        min_time = min_time * 1000
+        # This is the main data query - still needed but now with optimized context
+        sql_query = "SELECT * FROM ROI_{} WHERE t >= {} {}".format(
+            file["region_id"], min_time, max_time_condtion
+        )
+        data = pd.read_sql_query(sql_query, conn)
+
+        if "id" in data.columns:
+            # Check if 'id' is a primary key (reuse cursor)
+            cursor.execute(f"PRAGMA table_info(ROI_{file['region_id']})")
+            columns = cursor.fetchall()
+
+            is_primary_key = False
+            for column in columns:
+                if column[1] == "id" and column[5] == 1:  # column[5] is the pk flag
+                    is_primary_key = True
+                    break
+
+            if not is_primary_key:
+                # Old format - drop the id column to avoid conflicts
+                data = data.drop(columns=["id"])
+            # New format - keep the id column as it's a meaningful primary key
+
+        if reference_hour is not None:
+            t = date
+            t = t.split(" ")
+            hh, mm, ss = map(int, t[1].split(":"))
+            hour_start = hh + mm / 60 + ss / 3600
+            t_after_ref = ((hour_start - reference_hour) % 24) * 3600 * 1e3
+            data.t = (data.t + t_after_ref) / 1e3
+        else:
+            data.t = data.t / 1e3
+
+        if cache is not None:
+            data.to_pickle(path)
+
+        return data
+
+    except Exception as e:
+        print(f"Error reading ROI {file['region_id']}: {e}")
+        return None

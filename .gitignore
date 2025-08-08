@@ -8,3 +8,4 @@ ethoscopy.egg-info/
 .gitignore
 *.pkl
 .python-version
+tmp

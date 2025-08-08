@@ -664,15 +664,53 @@ class behavpy_core(pd.DataFrame):
         if day_length <= 0:
             raise ValueError("day_length must be positive")
 
-        # Create mapping dictionary from metadata
+        # Create mapping dictionary from metadata and handle string/numeric values
         day_dict = self.meta[column].to_dict()
+        day_length_seconds = day_length * 60 * 60
 
-        # Create new dataframe and add shifted times
-        new = self.copy(deep=True)
-        new["tmp_col"] = new.index.to_series().map(day_dict)
-        new[t_column] = new[t_column] + (new["tmp_col"] * (60 * 60 * day_length))
+        # Convert string baseline values to numeric (retrocompatible)
+        def convert_baseline_value(val):
+            if isinstance(val, str):
+                # Handle common string patterns
+                if val.lower() in ["normal", "baseline", "0"]:
+                    return 0
+                else:
+                    # Try to extract numeric value from string
+                    import re
 
-        return new.drop(columns=["tmp_col"])
+                    match = re.search(r"(\d+)", str(val))
+                    return int(match.group(1)) if match else 0
+            else:
+                # Already numeric
+                return float(val) if val is not None else 0
+
+        # Process data by specimen ID groups to avoid loading entire dataset in memory
+        result_list = []
+        for specimen_id, group in self.groupby(level="id"):
+            if specimen_id in day_dict:
+                shift_days = convert_baseline_value(day_dict[specimen_id])
+                if shift_days != 0:  # Only copy and modify if there's actually a shift
+                    group = group.copy()
+                    group[t_column] = group[t_column] + (
+                        shift_days * day_length_seconds
+                    )
+            result_list.append(group)
+
+        # Concatenate results
+        if result_list:
+            new_data = pd.concat(result_list, axis=0)
+        else:
+            # Return empty DataFrame with same structure
+            new_data = self.iloc[:0].copy()
+
+        # Return new behavpy object
+        return self.__class__(
+            new_data,
+            self.meta,
+            palette=self.attrs["sh_pal"],
+            long_palette=self.attrs["lg_pal"],
+            check=False,  # Skip validation for performance
+        )
 
     def curate(self, points: int) -> "behavpy_core":
         """
