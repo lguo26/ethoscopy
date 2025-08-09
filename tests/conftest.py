@@ -163,7 +163,7 @@ def mock_sqlite_db(tmp_path, sample_ethoscope_data):
         "INSERT INTO METADATA VALUES (\"experimental_info\", \"{'test': 'data', 'partitions': [1, 2]}\")"
     )  # Sample experimental info
     cursor.execute(
-        "INSERT INTO METADATA VALUES (\"hardware_info\", \"{'version': ['1.0'], 'partitions': [1, 2]}\")"
+        "INSERT INTO METADATA VALUES (\"hardware_info\", \"{'version': {'ethoscope_version': '1.0'}, 'partitions': [1, 2]}\")"
     )  # Sample hardware info
     cursor.execute(
         "INSERT INTO METADATA VALUES (\"selected_options\", \"{'option1': 'value1'}\")"
