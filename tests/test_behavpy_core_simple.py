@@ -295,3 +295,4 @@ class TestBehavpyCoreIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+# Test comment for hook validation

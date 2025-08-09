@@ -159,6 +159,15 @@ def mock_sqlite_db(tmp_path, sample_ethoscope_data):
     cursor.execute(
         'INSERT INTO METADATA VALUES ("date_time", "1640995200")'
     )  # 2022-01-01 00:00:00 UTC
+    cursor.execute(
+        "INSERT INTO METADATA VALUES (\"experimental_info\", \"{'test': 'data', 'partitions': [1, 2]}\")"
+    )  # Sample experimental info
+    cursor.execute(
+        "INSERT INTO METADATA VALUES (\"hardware_info\", \"{'version': ['1.0'], 'partitions': [1, 2]}\")"
+    )  # Sample hardware info
+    cursor.execute(
+        "INSERT INTO METADATA VALUES (\"selected_options\", \"{'option1': 'value1'}\")"
+    )  # Sample selected options
 
     # Create ROI_1 table with sample data
     sample_ethoscope_data.to_sql("ROI_1", conn, if_exists="replace", index=False)
