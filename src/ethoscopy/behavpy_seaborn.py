@@ -84,8 +84,8 @@ class behavpy_seaborn(behavpy_draw):
 
         # Set every nth x-tick label, in this example every 12th label
         n = lights_off
-        # x_labels = time_list[::n].astype(int)  # Get every nth label
         x_ticks = np.arange(0, len(time_list), n)  # Get every nth location
+        x_labels = time_list[::n].astype(int)  # Get every nth time value as labels
 
         # (0,0) means automatic size
         if figsize == (0, 0):
@@ -94,10 +94,14 @@ class behavpy_seaborn(behavpy_draw):
         fig, ax = plt.subplots(figsize=figsize)
         sns.heatmap(data, cmap="viridis", ax=ax)
 
-        plt.xticks(ticks=x_ticks, labels=x_ticks, rotation=0)
+        plt.xticks(ticks=x_ticks, labels=x_labels, rotation=0)
         plt.xlabel("ZT Time (Hours)")
 
-        plt.yticks(ticks=np.arange(0, len(id), 2), labels=id[::-2], rotation=0)
+        ax.invert_yaxis()
+        # Fix y-axis alignment: center labels with rows and reverse for inverted axis
+        y_ticks = np.arange(len(id)) + 0.5  # Center labels with rows
+        y_labels = id[::1]
+        plt.yticks(ticks=y_ticks, labels=y_labels, rotation=0)
 
         if title:
             fig.suptitle(title, fontsize=16, y=1)
