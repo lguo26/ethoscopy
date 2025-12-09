@@ -15,6 +15,38 @@ from ethoscopy.misc.validate_datetime import validate_datetime
 pd.options.mode.chained_assignment = None
 
 
+def _connect_db(path):
+    """
+    Connect to a SQLite database with smart read-only filesystem detection.
+
+    When the database directory is read-only (e.g., mounted with :ro in Docker),
+    SQLite cannot create journal/WAL files and will fail to open the database.
+    This function detects read-only filesystems and uses immutable mode to bypass
+    this limitation.
+
+    Args:
+        path (str): Path to the SQLite database file
+
+    Returns:
+        sqlite3.Connection: Database connection object
+
+    Note:
+        When using immutable mode on an active database with WAL journaling,
+        any uncommitted WAL data will not be visible. This is acceptable for
+        read-only mounts where the data cannot change anyway.
+    """
+    path_str = str(path)
+    dir_path = os.path.dirname(path_str)
+
+    # Check if we can write to the directory
+    if not os.access(dir_path, os.W_OK):
+        # Read-only filesystem - use immutable mode to avoid journal/lock file creation
+        return sqlite3.connect(f"file:{path_str}?immutable=1", uri=True)
+    else:
+        # Normal read-write access
+        return sqlite3.connect(path_str)
+
+
 def download_from_remote_dir(meta, remote_dir, local_dir):
     """
     Download ethoscope data from a remote FTP server to a local directory.
@@ -454,7 +486,7 @@ def load_ethoscope(
 
         try:
             # Open connection once per database file
-            conn = sqlite3.connect(db_path)
+            conn = _connect_db(db_path)
 
             # Cache metadata queries that are the same for all ROIs in this database
             roi_df = pd.read_sql_query("SELECT * FROM ROI_MAP", conn)
@@ -582,7 +614,7 @@ def load_ethoscope_metadata(metadata):
             dict: Dictionary containing processed metadata from the database
         """
         try:
-            conn = sqlite3.connect(path)
+            conn = _connect_db(path)
 
             mdf = pd.read_sql_query("SELECT * FROM METADATA", conn)
 
@@ -695,7 +727,7 @@ def read_single_roi(
             return data
 
     try:
-        conn = sqlite3.connect(file["path"])
+        conn = _connect_db(file["path"])
 
         # Check if database file is accessible and contains expected tables
         cursor = conn.cursor()
