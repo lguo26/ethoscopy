@@ -45,6 +45,41 @@ pip install -e ".[dev]"
 - Build: `JUPYTER_HUB_TAG=5.3.0 ETHOSCOPE_LAB_TAG=1.0 docker compose build`
 - Run: `docker compose up -d` (from Docker/ directory)
 
+### Troubleshooting: Database "Malformed" Errors
+
+**Problem**: Intermittent "database disk image is malformed" errors when loading ethoscope data in Docker
+
+**Root Cause**: SQLite databases in WAL (Write-Ahead Logging) mode on read-only Docker mounts
+
+**Solution Options**:
+1. **Convert databases to DELETE mode** (recommended for immediate fix)
+   ```bash
+   # Using the conversion script (from project root)
+   python3 scripts/convert_wal_to_delete.py /mnt/ethoscope_data/results --verbose
+
+   # Or using bash wrapper
+   ./scripts/convert_databases.sh /mnt/ethoscope_data/results
+   ```
+
+2. **Improved connection handling** (v2.0.4+)
+   - The `_connect_db()` function in `load.py` now detects WAL mode automatically
+   - Uses `mode=ro&nolock=1` URI parameters for WAL databases on read-only mounts
+   - Includes retry logic in `read_single_roi_optimized()` for resilience
+
+**Key Implementation Details** (load.py):
+- Lines 18-70: `_connect_db()` - Smart connection with WAL detection and appropriate parameters
+- Lines 943-979: Retry logic in `read_single_roi_optimized()` - Handles transient errors with fresh connections
+
+**Testing After Changes**:
+```python
+import ethoscopy as etho
+metadata = etho.link_meta_index('metadata.csv', '/mnt/ethoscope_results')
+data = etho.load_ethoscope(metadata, reference_hour=9.0, FUN=etho.sleep_annotation)
+# Should load all ROIs without "malformed" errors
+```
+
+**See Also**: `Docker/README.md` for detailed database preparation instructions
+
 ## Architecture and Code Structure
 
 ### Core Architecture

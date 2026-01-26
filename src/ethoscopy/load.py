@@ -21,8 +21,8 @@ def _connect_db(path):
 
     When the database directory is read-only (e.g., mounted with :ro in Docker),
     SQLite cannot create journal/WAL files and will fail to open the database.
-    This function detects read-only filesystems and uses immutable mode to bypass
-    this limitation.
+    This function detects read-only filesystems and uses appropriate connection
+    parameters to handle WAL-mode databases safely.
 
     Args:
         path (str): Path to the SQLite database file
@@ -31,8 +31,9 @@ def _connect_db(path):
         sqlite3.Connection: Database connection object
 
     Note:
-        When using immutable mode on an active database with WAL journaling,
-        any uncommitted WAL data will not be visible. This is acceptable for
+        For WAL-mode databases on read-only mounts, this function uses mode=ro
+        with nolock=1 to prevent "database disk image is malformed" errors.
+        Any uncommitted WAL data will not be visible, which is acceptable for
         read-only mounts where the data cannot change anyway.
     """
     path_str = str(path)
@@ -40,8 +41,30 @@ def _connect_db(path):
 
     # Check if we can write to the directory
     if not os.access(dir_path, os.W_OK):
-        # Read-only filesystem - use immutable mode to avoid journal/lock file creation
-        return sqlite3.connect(f"file:{path_str}?immutable=1", uri=True)
+        # Read-only filesystem - check if database is in WAL mode
+        try:
+            # Try to detect WAL mode by opening in read-only mode first
+            temp_conn = sqlite3.connect(f"file:{path_str}?mode=ro", uri=True)
+            cursor = temp_conn.cursor()
+            cursor.execute("PRAGMA journal_mode;")
+            journal_mode = cursor.fetchone()[0].lower()
+            temp_conn.close()
+
+            if journal_mode == 'wal':
+                # WAL mode on read-only mount: use mode=ro with nolock
+                # This prevents "database disk image is malformed" errors
+                # by avoiding operations that require WAL/SHM files
+                return sqlite3.connect(
+                    f"file:{path_str}?mode=ro&nolock=1",
+                    uri=True,
+                    timeout=10.0
+                )
+            else:
+                # Non-WAL mode: use immutable mode for better performance
+                return sqlite3.connect(f"file:{path_str}?immutable=1", uri=True)
+        except Exception:
+            # If detection fails, fall back to immutable mode
+            return sqlite3.connect(f"file:{path_str}?immutable=1", uri=True)
     else:
         # Normal read-write access
         return sqlite3.connect(path_str)
@@ -916,7 +939,41 @@ def read_single_roi_optimized(
         sql_query = "SELECT * FROM ROI_{} WHERE t >= {} {}".format(
             file["region_id"], min_time, max_time_condtion
         )
-        data = pd.read_sql_query(sql_query, conn)
+
+        # Execute query with retry logic for WAL-related errors
+        try:
+            data = pd.read_sql_query(sql_query, conn)
+        except sqlite3.DatabaseError as e:
+            # Handle "database disk image is malformed" errors
+            # This can occur with WAL-mode databases on read-only mounts
+            if "malformed" in str(e).lower() or "disk image" in str(e).lower():
+                print(f"Warning: Database error for ROI {file['region_id']}, attempting retry with fresh connection...")
+
+                # Get database path from file metadata
+                db_path = file.get("path")
+                if not db_path:
+                    print(f"Error: Cannot retry - database path not found in file metadata")
+                    raise
+
+                # Create a fresh connection just for the retry
+                retry_conn = None
+                try:
+                    retry_conn = _connect_db(db_path)
+                    data = pd.read_sql_query(sql_query, retry_conn)
+                    print(f"Success: ROI {file['region_id']} loaded on retry")
+                except Exception as retry_error:
+                    print(f"Error: Retry failed for ROI {file['region_id']}: {retry_error}")
+                    raise
+                finally:
+                    # Clean up retry connection
+                    if retry_conn:
+                        try:
+                            retry_conn.close()
+                        except Exception:
+                            pass
+            else:
+                # Re-raise other database errors
+                raise
 
         if "id" in data.columns:
             # Check if 'id' is a primary key (reuse cursor)

@@ -83,3 +83,145 @@ volumes:
 ```
 
 This ensures all user work is preserved even when containers are recreated or updated.
+
+## Database Preparation for Docker
+
+When mounting ethoscope database files into Docker containers with read-only permissions (`:ro`), you may encounter "database disk image is malformed" errors. This occurs when SQLite databases are in WAL (Write-Ahead Logging) mode but mounted on read-only filesystems where WAL companion files (`.db-wal`, `.db-shm`) cannot be accessed.
+
+### Understanding the Issue
+
+**Why this happens:**
+- Ethoscope databases may be created in **WAL mode** for better write performance
+- WAL mode requires companion files (`.db-wal` and `.db-shm`) alongside the main `.db` file
+- Docker read-only mounts (`:ro`) prevent SQLite from accessing these files properly
+- This causes intermittent "database disk image is malformed" errors during data loading
+
+**Symptoms:**
+- Intermittent loading failures for specific ROIs
+- Error message: "database disk image is malformed"
+- Same ROI may succeed on some loads and fail on others
+- More common with large databases (>1 GB)
+
+### Solution: Convert Databases to DELETE Mode
+
+Before mounting databases in Docker, convert them from WAL to DELETE mode:
+
+#### Using the Python Script (Recommended)
+
+```bash
+# From the ethoscopy project root
+python3 scripts/convert_wal_to_delete.py /mnt/ethoscope_data/results --dry-run
+
+# Convert all databases with detailed output
+python3 scripts/convert_wal_to_delete.py /mnt/ethoscope_data/results --verbose
+
+# Force conversion even for recently modified files (use with caution)
+python3 scripts/convert_wal_to_delete.py /mnt/ethoscope_data/results --force
+```
+
+#### Using the Bash Wrapper
+
+```bash
+# From the ethoscopy project root
+./scripts/convert_databases.sh /mnt/ethoscope_data/results
+```
+
+#### Manual Conversion Using sqlite3
+
+For individual databases:
+
+```bash
+sqlite3 /path/to/database.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+```
+
+For bulk conversion:
+
+```bash
+find /mnt/ethoscope_data/results -name "*.db" -type f -exec sqlite3 {} "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;" \;
+```
+
+### Verification
+
+After conversion, verify the database is in DELETE mode:
+
+```bash
+sqlite3 /path/to/database.db "PRAGMA journal_mode;"
+# Should output: delete
+
+sqlite3 /path/to/database.db "PRAGMA integrity_check;"
+# Should output: ok
+```
+
+### Best Practices
+
+1. **Run conversion BEFORE starting Docker containers**
+   ```bash
+   # From the ethoscopy project root, convert databases first
+   ./scripts/convert_databases.sh /mnt/ethoscope_data/results
+
+   # Then start containers
+   cd Docker && docker compose up -d
+   ```
+
+2. **Do NOT convert databases while ethoscopes are actively writing**
+   - The conversion script skips files modified in the last 24 hours by default
+   - Use `--force` to override this safety check if needed
+
+3. **Test on a backup first**
+   ```bash
+   # Create a test copy
+   cp /path/to/database.db /tmp/test.db
+
+   # Test conversion
+   sqlite3 /tmp/test.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+
+   # Verify it works
+   sqlite3 /tmp/test.db "PRAGMA integrity_check;"
+   ```
+
+4. **Consider converting at the ethoscope source** (upstream fix)
+   - Configure ethoscopes to use DELETE mode by default
+   - Prevents the need for post-processing
+
+### Troubleshooting
+
+**Q: I still get "malformed" errors after conversion**
+
+A: The ethoscopy library now includes improved connection handling that should work with both WAL and DELETE mode databases. If you still encounter issues:
+1. Verify the database was actually converted: `sqlite3 database.db "PRAGMA journal_mode;"`
+2. Check database integrity: `sqlite3 database.db "PRAGMA integrity_check;"`
+3. Ensure you're using ethoscopy version 2.0.4 or later
+
+**Q: Can I convert databases while Docker is running?**
+
+A: Yes, but you should restart the container after conversion:
+```bash
+# From the ethoscopy project root
+./scripts/convert_databases.sh /mnt/ethoscope_data/results
+cd Docker && docker compose restart ethoscope-lab
+```
+
+**Q: Will this affect data quality or analysis?**
+
+A: No. The conversion only changes how SQLite manages the database internally. All data remains identical and analysis results are unaffected.
+
+**Q: How do I check if a database is in WAL mode?**
+
+A:
+```bash
+sqlite3 database.db "PRAGMA journal_mode;"
+```
+Output will be either `wal` or `delete` (or `truncate`, `persist`, `memory`).
+
+### Emergency Quick Fix
+
+If you need to work immediately and can't run the full conversion:
+
+```bash
+# SSH to host machine (not inside container)
+# Convert just the failing database
+sqlite3 /path/to/failing/database.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+
+# Restart container
+docker compose restart ethoscope-lab
+```
