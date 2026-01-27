@@ -70,14 +70,16 @@ RUN pip3 install jupyterlab-spreadsheet-editor
 # ============================================================================
 
 # Install Python data science packages
+# Including oauthenticator for flexible authentication support
 RUN pip3 install \
+        oauthenticator \
         pandas \
         seaborn \
         bokeh \
         lifelines \
         opencv-python \
         mysql-connector \
-        ethoscopy 
+        ethoscopy
        # pycatch22
 
 # Install Ethoscope from source

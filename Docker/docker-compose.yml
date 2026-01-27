@@ -6,16 +6,48 @@ services:
       dockerfile: Dockerfile
       args:
         JUPYTER_HUB_TAG: ${JUPYTER_HUB_TAG:-5.3.0}
-    image: ggilestro/ethoscope-lab:${ETHOSCOPE_LAB_TAG:-1.0}
+    image: ggilestro/ethoscope-lab:${ETHOSCOPE_LAB_TAG:-1.1}
     container_name: ethoscope-lab
     ports:
       - 8082:8000
     volumes:
       - /mnt/ethoscope_data/results:/mnt/ethoscope_results:ro
       - /mnt/ethoscope_data/ethoscope_metadata:/opt/ethoscope_metadata
-      - /mnt/ethoscopy/homes:/home
-      - /mnt/ethoscopy/cache:/home/cache
+      - /mnt/homes:/home
+      - /mnt/cache:/home/cache
       - ./jupyterhub_data:/srv/jupyterhub/
+      - ./config/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro
+      - ./config/users.py:/srv/jupyterhub/users.py:ro
+
+    # Load environment variables from .env file
+    # To use different authentication:
+    # - Copy one of the .env.*.example files to .env
+    # - Edit .env with your configuration
+    # - Restart the container
+    env_file:
+      - .env
+
+    # Optional: Override specific environment variables here
+    environment:
+      # Authentication configuration (can be overridden by .env file)
+      - AUTHENTICATOR_CLASS=${AUTHENTICATOR_CLASS:-dummy}
+      - DUMMY_PASSWORD=${DUMMY_PASSWORD:-ethoscope}
+      - ALLOWED_USERS=${ALLOWED_USERS}
+      - ADMIN_USERS=${ADMIN_USERS}
+      # OAuth settings (only needed when using OAuth authenticators)
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - OAUTH_CALLBACK_URL=${OAUTH_CALLBACK_URL}
+      - OAUTH_AUTHORIZE_URL=${OAUTH_AUTHORIZE_URL}
+      - OAUTH_TOKEN_URL=${OAUTH_TOKEN_URL}
+      - OAUTH_USERDATA_URL=${OAUTH_USERDATA_URL}
+      - OAUTH_USERNAME_CLAIM=${OAUTH_USERNAME_CLAIM}
+      - OAUTH_SCOPE=${OAUTH_SCOPE}
+      # Provider-specific settings
+      - GITHUB_ORG=${GITHUB_ORG}
+      - GOOGLE_HOSTED_DOMAIN=${GOOGLE_HOSTED_DOMAIN}
+      - GITLAB_URL=${GITLAB_URL}
+
     user: "${UID:-1000}:${GID:-1000}" # Adjust to your own user. Make sure this matches the permissions of your /mnt/{homes,cache} folder
     restart: always
     deploy:

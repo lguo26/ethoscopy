@@ -12,43 +12,36 @@ The command to use to recreate that image is `JUPYTER_HUB_TAG=5.3.0 ETHOSCOPE_LA
 
 After creation, the image can be run using the enclosed `docker-compose.yml` file, replacing values as fit.
 
-## Add new users to the JupyterHub
+## Authentication and User Management
 
-To add new users to the JupyterHub instance:
+This JupyterHub instance supports multiple authentication methods including:
+- **Keycloak OAuth** (current production setup at auth.gilest.ro)
+- GitHub OAuth
+- Google OAuth
+- GitLab OAuth
+- Dummy authenticator (shared password)
 
-### 1. Modify the jupyterhub_config.py file
+### Adding New Users
 
-Edit the `allowed_users` set on lines 14-19 to include your new usernames:
+**⚠️ Important**: Adding a new user requires steps on BOTH the authentication provider AND the JupyterHub host.
 
-```python
-c.Authenticator.allowed_users = {
-    'amadabhushi', 'ggilestro', 'mjoyce', 'lguo',
-    'labguest1', 'labguest2', 'labguest3', 'labguest4',
-    'labguest5', 'labguest6', 'labguest7', 'labguest8',
-    'ethoscopelab', 'newuser1', 'newuser2'  # Add your new users here
-}
-```
+For detailed instructions on adding users, making users admins, and switching authentication methods, see:
 
-To make a user an admin, add them to the `admin_users` set on line 22:
+**📖 [README_AUTH.md](./README_AUTH.md) - Complete Authentication and User Management Guide**
 
-```python
-c.Authenticator.admin_users = {'ggilestro', 'newadmin'}
-```
+### Quick Reference
 
-### 2. Restart the Docker container
+**For Keycloak (current setup)**:
+1. Add user to Keycloak at `auth.gilest.ro` in the `gilestro-lab` realm
+2. Create home directory on host: `sudo mkdir -p /mnt/homes/username && sudo chown 1000:1000 /mnt/homes/username`
+3. (Optional) Add to `config/users.py` if using whitelist enforcement
 
-After modifying the config file:
+**For Dummy Auth**:
+1. Add username to `config/users.py` or `.env` file
+2. Create home directory on host
+3. Restart container
 
-```bash
-docker compose down
-docker compose up -d
-```
-
-**Notes:**
-- All users share the same password: `ethoscope` (line 11)
-- The system uses DummyAuthenticator for simple shared-password authentication
-- Each user gets their own home directory at `/home/{username}`
-- Home directories are created automatically when users first log in
+See [README_AUTH.md](./README_AUTH.md) for complete step-by-step instructions.
 
 ## Mounting Home Directories as Volumes
 
