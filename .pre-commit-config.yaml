@@ -51,7 +51,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]
 
       - id: pytest-fast
         name: pytest-fast
@@ -59,4 +59,4 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [push]
+        stages: [pre-push]
