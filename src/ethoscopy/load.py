@@ -50,14 +50,12 @@ def _connect_db(path):
             journal_mode = cursor.fetchone()[0].lower()
             temp_conn.close()
 
-            if journal_mode == 'wal':
+            if journal_mode == "wal":
                 # WAL mode on read-only mount: use mode=ro with nolock
                 # This prevents "database disk image is malformed" errors
                 # by avoiding operations that require WAL/SHM files
                 return sqlite3.connect(
-                    f"file:{path_str}?mode=ro&nolock=1",
-                    uri=True,
-                    timeout=10.0
+                    f"file:{path_str}?mode=ro&nolock=1", uri=True, timeout=10.0
                 )
             else:
                 # Non-WAL mode: use immutable mode for better performance
@@ -947,12 +945,16 @@ def read_single_roi_optimized(
             # Handle "database disk image is malformed" errors
             # This can occur with WAL-mode databases on read-only mounts
             if "malformed" in str(e).lower() or "disk image" in str(e).lower():
-                print(f"Warning: Database error for ROI {file['region_id']}, attempting retry with fresh connection...")
+                print(
+                    f"Warning: Database error for ROI {file['region_id']}, attempting retry with fresh connection..."
+                )
 
                 # Get database path from file metadata
                 db_path = file.get("path")
                 if not db_path:
-                    print("Error: Cannot retry - database path not found in file metadata")
+                    print(
+                        "Error: Cannot retry - database path not found in file metadata"
+                    )
                     raise
 
                 # Create a fresh connection just for the retry
@@ -962,7 +964,9 @@ def read_single_roi_optimized(
                     data = pd.read_sql_query(sql_query, retry_conn)
                     print(f"Success: ROI {file['region_id']} loaded on retry")
                 except Exception as retry_error:
-                    print(f"Error: Retry failed for ROI {file['region_id']}: {retry_error}")
+                    print(
+                        f"Error: Retry failed for ROI {file['region_id']}: {retry_error}"
+                    )
                     raise
                 finally:
                     # Clean up retry connection
