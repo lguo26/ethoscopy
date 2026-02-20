@@ -952,7 +952,7 @@ def read_single_roi_optimized(
                 # Get database path from file metadata
                 db_path = file.get("path")
                 if not db_path:
-                    print(f"Error: Cannot retry - database path not found in file metadata")
+                    print("Error: Cannot retry - database path not found in file metadata")
                     raise
 
                 # Create a fresh connection just for the retry
