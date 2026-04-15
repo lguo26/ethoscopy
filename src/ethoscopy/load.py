@@ -3,6 +3,12 @@ import ftplib
 import os
 import sqlite3
 import time
+
+# Reason: newer ethoscope firmwares serialize the "selected_options" METADATA
+# field with an ``OrderedDict([...])`` wrapper. ``get_meta`` below round-trips
+# that blob through ``eval``, which resolves ``OrderedDict`` from this module's
+# globals — so the import must stay even though no source line references it.
+from collections import OrderedDict  # noqa: F401
 from functools import partial
 from pathlib import Path, PurePath, PurePosixPath
 from urllib.parse import urlparse
@@ -634,6 +640,7 @@ def load_ethoscope_metadata(metadata):
         Returns:
             dict: Dictionary containing processed metadata from the database
         """
+        conn = None
         try:
             conn = _connect_db(path)
 
@@ -650,10 +657,16 @@ def load_ethoscope_metadata(metadata):
             d = eval(mdf["experimental_info"].iloc[0])
             exi = d
 
+            # Reason: older ethoscope firmwares omit "partitions" and/or store
+            # hardware_info without a nested "version" mapping. Tolerate both
+            # so a single quirky database doesn't abort the whole load.
             d = eval(mdf["hardware_info"].iloc[0])
-            d.pop("partitions")
-            td = pd.DataFrame(d)
-            hdi = td.loc["version"].to_dict()
+            d.pop("partitions", None)
+            try:
+                td = pd.DataFrame(d)
+                hdi = td.loc["version"].to_dict() if "version" in td.index else {}
+            except (ValueError, KeyError):
+                hdi = {}
 
             d = eval(
                 mdf["selected_options"]
@@ -664,6 +677,13 @@ def load_ethoscope_metadata(metadata):
             )["interactor"]
             kw = d.pop("kwargs")
             kw["class"] = d["class"]
+
+            # Reason: interactors such as sleep-deprivation store their active
+            # time window under the kwarg "date_range". Surface it as
+            # "stimulus_range" so it cannot be confused with the experiment's
+            # own acquisition date range.
+            if "date_range" in kw:
+                kw["stimulus_range"] = kw.pop("date_range")
 
             mdf.drop(
                 columns=[
@@ -685,7 +705,8 @@ def load_ethoscope_metadata(metadata):
             return row_dict
 
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
     meta_df = metadata.copy(deep=True)
 
