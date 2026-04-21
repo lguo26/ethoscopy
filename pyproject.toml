@@ -1,6 +1,6 @@
 [project]
 name = "ethoscopy"
-version = "2.0.4"
+version = "2.0.5"
 description = "\"A python based toolkit to download and anlyse data from the Ethoscope hardware system.\""
 authors = [{name = "Lblackhurst29",email = "lblackhurst29@gmail.com"}]
 readme = "README.md"
@@ -57,6 +57,13 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ethoscopy"]
+# Tutorial datasets are intentionally NOT shipped in the wheel: overview_data.pkl
+# alone is ~31 MB, which would bloat `pip install ethoscopy` ~200x for files most
+# users never touch. The pickles stay tracked in git so users can fetch them on
+# demand via `etho.download_tutorial_data()` or directly from the repo.
+exclude = [
+    "src/ethoscopy/misc/tutorial_data/*.pkl",
+]
 
 [build-system]
 requires = ["hatchling"]

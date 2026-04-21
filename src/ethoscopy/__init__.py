@@ -20,12 +20,15 @@ from ethoscopy.load import (
     load_ethoscope_metadata,
 )
 from ethoscopy.misc.general_functions import concat
+from ethoscopy.misc.get_tutorials import download_tutorial_data, get_tutorial
 
 __version__ = importlib.metadata.version("ethoscopy")
 
 __all__ = [
     "behavpy",
     "download_from_remote_dir",
+    "download_tutorial_data",
+    "get_tutorial",
     "link_meta_index",
     "load_ethoscope",
     "load_ethoscope_metadata",

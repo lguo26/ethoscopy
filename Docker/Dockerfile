@@ -82,6 +82,11 @@ RUN pip3 install \
         ethoscopy
        # pycatch22
 
+# Pre-populate tutorial datasets inside the installed package so non-root
+# JupyterHub users don't have to download them on first notebook run. The
+# pickles (~36 MB total) live in the ethoscopy repo, not the PyPI wheel.
+RUN python3 -c "from ethoscopy.misc.get_tutorials import download_tutorial_data, package_tutorial_data_dir; download_tutorial_data(dest_dir=package_tutorial_data_dir(), verbose=True)"
+
 # Install Ethoscope from source
 RUN git clone https://github.com/gilestrolab/ethoscope.git /opt/ethoscope && \
     cd /opt/ethoscope/ && git checkout dev && \

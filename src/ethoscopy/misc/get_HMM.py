@@ -1,7 +1,8 @@
 import pickle
-from pathlib import Path
 
 from hmmlearn.hmm import CategoricalHMM
+
+from ethoscopy.misc.get_tutorials import _find_pickle, _missing_files_message
 
 
 def get_HMM(sex: str) -> "CategoricalHMM":
@@ -21,25 +22,14 @@ def get_HMM(sex: str) -> "CategoricalHMM":
         KeyError: If sex argument is not 'M' or 'F'
         FileNotFoundError: If HMM model file cannot be found
     """
-    # Get absolute path that works on all OS
-    path = Path(__file__).absolute()
-    this_dir = path.parent
-
-    # Normalize input
     sex = sex.upper()
     if sex not in {"M", "F"}:
         raise KeyError('The argument for "sex" must be "M" or "F"')
 
-    # Use Path's / operator for cross-platform path joining
-    hmm_path = this_dir / "tutorial_data" / f"4_states_{sex}_WT.pkl"
+    name = f"4_states_{sex}_WT.pkl"
+    hmm_path = _find_pickle(name)
+    if hmm_path is None:
+        raise FileNotFoundError(_missing_files_message([name]))
 
-    try:
-        with open(hmm_path, "rb") as file:
-            h = pickle.load(file)
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            f"HMM model file not found at: {hmm_path}\n"
-            f"Current directory is: {this_dir}"
-        )
-
-    return h
+    with open(hmm_path, "rb") as file:
+        return pickle.load(file)

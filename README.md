@@ -66,6 +66,27 @@ df = pd.read_pickle('path/to/your/file.pkl')
 df = etho.behavpy(df, df.meta, check = True, canvas = 'plotly', palette = 'Set2')
 ```
 
+## Tutorial data
+
+The six pickle files used by the tutorial notebooks (~36 MB total, dominated by `overview_data.pkl` at ~31 MB) are **intentionally not shipped with the PyPI wheel** to keep `pip install ethoscopy` lean. Fetch them once with:
+
+```python
+import ethoscopy as etho
+etho.download_tutorial_data()   # idempotent — skips files already on disk
+```
+
+By default this populates `~/.cache/ethoscopy/tutorial_data/` (user-writable on every platform, no root required). After that, `get_tutorial('overview')`, `get_tutorial('circadian')` and `get_HMM('M'|'F')` Just Work.
+
+**Lookup order.** At load time, ethoscopy checks three locations in this order:
+
+1. `<site-packages>/ethoscopy/misc/tutorial_data/` — used by dev/editable installs and by the project's Docker image (which pre-populates it during build; see `Docker/Dockerfile`).
+2. `$ETHOSCOPY_TUTORIAL_DATA_DIR` if set — useful for shared clusters where one admin-maintained copy serves many users.
+3. `~/.cache/ethoscopy/tutorial_data/` — the default for `download_tutorial_data()`.
+
+**Manual download.** The canonical URLs live at
+<https://github.com/gilestrolab/ethoscopy/tree/main/src/ethoscopy/misc/tutorial_data>.
+Place the six `*.pkl` files in any of the three locations above.
+
 ## Development and Testing
 
 Ethoscopy includes a comprehensive test suite to ensure code reliability and prevent regressions.
