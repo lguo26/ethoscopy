@@ -25,6 +25,16 @@ RUN apt-get update && \
         libtiff-dev \
         libxml2-dev \
         libpam0g-dev \
+        libssl-dev \
+        libgit2-dev \
+        libssh2-1-dev \
+        libfreetype6-dev \
+        libpng-dev \
+        libjpeg-dev \
+        libwebp-dev \
+        libcap-dev \
+        python3-dev \
+        pkg-config \
         wget \
         lsb-release \
         software-properties-common \
