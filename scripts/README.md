@@ -1,6 +1,34 @@
-# Ethoscopy Database Utility Scripts
+# Ethoscopy Utility Scripts
 
-This directory contains utility scripts for managing and maintaining ethoscope SQLite databases.
+This directory contains helper scripts used for documentation, deployment and database maintenance around ethoscopy.
+
+## Publishing tutorial notebooks to BookStack
+
+### publish_tutorials.py
+
+Executes a Jupyter tutorial notebook against a clean seaborn kernel, strips the Plotly JS blobs that nbconvert would otherwise embed as multi-megabyte text outputs, uploads the resulting PNGs to BookStack's image gallery and rewrites the markdown to reference the uploaded URLs. Creates or updates a BookStack page in-place.
+
+**Usage:**
+
+```bash
+# Update an existing BookStack page
+python3 scripts/publish_tutorials.py tutorial_notebook/1_Overview_tutorial.ipynb --page-id 16
+
+# Create a new page under a given book
+python3 scripts/publish_tutorials.py tutorial_notebook/3_Circadian_tutorial.ipynb \
+    --create --book-id 1 --title "Tutorial 3 — Circadian analysis"
+
+# Point at a specific credentials file (otherwise ~/Code/dockers/MCPs/.env is tried,
+# and BOOKSTACK_BASE_URL / BOOKSTACK_API_TOKEN in the environment win if set)
+python3 scripts/publish_tutorials.py … --env-file /path/to/.env
+```
+
+**Requirements:**
+- `jupyter nbconvert` with a kernel that has `ethoscopy` installed (defaults to `python3`)
+- `BOOKSTACK_BASE_URL` and `BOOKSTACK_API_TOKEN` (in env or `.env` file)
+- `requests` (`pip install requests` if not already present)
+
+**What it does NOT do:** re-order existing tutorial pages, move pages between books, or touch the source notebook on disk. All work happens in a scratch dir under `/tmp/ethoscopy_publish_tutorials/<stem>/`.
 
 ## Database Journal Mode Conversion
 
