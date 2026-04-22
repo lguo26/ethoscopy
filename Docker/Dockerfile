@@ -1,5 +1,5 @@
 # Dockerfile for jupyter-rethomics
-ARG JUPYTER_HUB_TAG=5.3.0
+ARG JUPYTER_HUB_TAG=5.4.0
 FROM jupyterhub/jupyterhub:${JUPYTER_HUB_TAG}
 
 # ============================================================================

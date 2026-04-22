@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        JUPYTER_HUB_TAG: ${JUPYTER_HUB_TAG:-5.3.0}
+        JUPYTER_HUB_TAG: ${JUPYTER_HUB_TAG:-5.4.0}
     image: ggilestro/ethoscope-lab:${ETHOSCOPE_LAB_TAG:-1.2}
     container_name: ethoscope-lab
     ports:
