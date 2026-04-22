@@ -12,6 +12,12 @@ from tabulate import tabulate
 
 from ethoscopy.analyse import max_velocity_detector
 from ethoscopy.misc.general_functions import concat, rle
+from ethoscopy.misc.periodogram_functions import (  # noqa: F401 — resolved by eval() in _check_periodogram_input
+    chi_squared,
+    fourier,
+    lomb_scargle,
+    wavelet,
+)
 
 
 class behavpy_core(pd.DataFrame):

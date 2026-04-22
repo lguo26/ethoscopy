@@ -125,20 +125,34 @@ def load_env(env_file: Path | None) -> tuple[str, str]:
     return base_url.rstrip("/"), token
 
 
-def execute_notebook(src: Path, dst: Path, kernel: str, timeout: int) -> None:
-    """Run the notebook against a fresh kernel and write outputs to dst."""
+def execute_notebook(
+    src: Path, dst: Path, kernel: str, timeout: int, allow_errors: bool
+) -> None:
+    """Run the notebook against a fresh kernel and write outputs to dst.
+
+    With allow_errors=True, cell exceptions are captured as tracebacks in the
+    cell output instead of aborting the run — the right choice for
+    documentation pipelines where we'd rather publish everything we have and
+    surface the broken cell in situ than produce nothing.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dst)
-    subprocess.run(
-        [
-            sys.executable, "-m", "jupyter", "nbconvert",
-            "--execute", "--to", "notebook", "--inplace",
-            f"--ExecutePreprocessor.timeout={timeout}",
-            f"--ExecutePreprocessor.kernel_name={kernel}",
-            str(dst),
-        ],
-        check=True,
-    )
+    cmd = [
+        sys.executable,
+        "-m",
+        "jupyter",
+        "nbconvert",
+        "--execute",
+        "--to",
+        "notebook",
+        "--inplace",
+        f"--ExecutePreprocessor.timeout={timeout}",
+        f"--ExecutePreprocessor.kernel_name={kernel}",
+        str(dst),
+    ]
+    if allow_errors:
+        cmd.insert(-1, "--ExecutePreprocessor.allow_errors=True")
+    subprocess.run(cmd, check=True)
 
 
 def strip_plotly_outputs(nb_path: Path) -> None:
@@ -158,18 +172,24 @@ def strip_plotly_outputs(nb_path: Path) -> None:
         if cell.get("cell_type") != "code":
             continue
         outs = cell.get("outputs", [])
-        kept = [o for o in outs if not (
-            o.get("output_type") in ("display_data", "execute_result")
-            and is_plotly(o)
-        )]
+        kept = [
+            o
+            for o in outs
+            if not (
+                o.get("output_type") in ("display_data", "execute_result")
+                and is_plotly(o)
+            )
+        ]
         if len(kept) != len(outs) and not any(
             o.get("output_type") in ("display_data", "execute_result") for o in kept
         ):
-            kept.append({
-                "output_type": "display_data",
-                "data": {"text/markdown": [PLOTLY_PLACEHOLDER]},
-                "metadata": {},
-            })
+            kept.append(
+                {
+                    "output_type": "display_data",
+                    "data": {"text/markdown": [PLOTLY_PLACEHOLDER]},
+                    "metadata": {},
+                }
+            )
         cell["outputs"] = kept
 
     nb_path.write_text(json.dumps(nb, indent=1))
@@ -179,9 +199,14 @@ def convert_to_markdown(nb_path: Path, stem: str) -> tuple[Path, Path]:
     """Run nbconvert --to markdown, return (md_path, support_dir)."""
     subprocess.run(
         [
-            sys.executable, "-m", "jupyter", "nbconvert",
-            "--to", "markdown",
-            "--output", stem,
+            sys.executable,
+            "-m",
+            "jupyter",
+            "nbconvert",
+            "--to",
+            "markdown",
+            "--output",
+            stem,
             str(nb_path),
         ],
         check=True,
@@ -192,13 +217,48 @@ def convert_to_markdown(nb_path: Path, stem: str) -> tuple[Path, Path]:
     return md, support
 
 
-def rewrite_image_refs(md: Path, support: Path, client: BookStackClient,
-                       page_id: int, notebook_stem: str) -> None:
+MAX_UPLOAD_BYTES = 1_800_000  # BookStack/PHP default upload_max_filesize is ~2 MB.
+MAX_IMAGE_WIDTH = 1800  # Downscale threshold for oversized figures.
+
+
+def _shrink_oversized(png: Path) -> None:
+    """If png is too large, rescale + recompress in-place until it fits."""
+    if png.stat().st_size <= MAX_UPLOAD_BYTES:
+        return
+    try:
+        from PIL import Image  # lazy import: Pillow is optional
+    except ImportError:
+        print(
+            f"  WARN: {png.name} is {png.stat().st_size / 1e6:.1f} MB and "
+            f"Pillow is not installed — upload may fail. `pip install pillow`.",
+            file=sys.stderr,
+        )
+        return
+
+    img = Image.open(png)
+    if img.width > MAX_IMAGE_WIDTH:
+        ratio = MAX_IMAGE_WIDTH / img.width
+        img = img.resize(
+            (MAX_IMAGE_WIDTH, int(img.height * ratio)),
+            Image.LANCZOS,
+        )
+    img.save(png, optimize=True)
+    print(
+        f"  downscaled {png.name} → {png.stat().st_size / 1e6:.1f} MB "
+        f"({img.width}×{img.height})",
+        file=sys.stderr,
+    )
+
+
+def rewrite_image_refs(
+    md: Path, support: Path, client: BookStackClient, page_id: int, notebook_stem: str
+) -> None:
     """Upload every PNG in support/ and rewrite the markdown image refs."""
     if not support.exists():
         return
     url_map: dict[str, str] = {}
     for png in sorted(support.glob("*.png")):
+        _shrink_oversized(png)
         name = f"{notebook_stem}__{png.stem}"
         print(f"  upload {png.name} as {name!r}", file=sys.stderr)
         url_map[png.name] = client.upload_image(png, page_id, name)
@@ -219,30 +279,58 @@ def prepend_banner(md: Path, notebook_relpath: str, github_base: str) -> None:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__,
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("notebook", type=Path,
-                   help="Path to the source .ipynb (relative or absolute)")
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "notebook", type=Path, help="Path to the source .ipynb (relative or absolute)"
+    )
     group = p.add_mutually_exclusive_group(required=True)
-    group.add_argument("--page-id", type=int,
-                       help="Existing BookStack page ID to update")
-    group.add_argument("--create", action="store_true",
-                       help="Create a new page instead of updating")
-    p.add_argument("--book-id", type=int,
-                   help="BookStack book ID (required with --create)")
-    p.add_argument("--title", type=str,
-                   help="Page title. Defaults to notebook basename.")
-    p.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE,
-                   help=f"Path to .env with BOOKSTACK_* vars (default: {DEFAULT_ENV_FILE})")
-    p.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR,
-                   help=f"Working directory for intermediate files (default: {DEFAULT_WORKDIR})")
-    p.add_argument("--kernel", default="python3",
-                   help="Jupyter kernel name used to execute the notebook")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="Per-cell execution timeout in seconds")
-    p.add_argument("--github-base", default=(
-        "https://github.com/gilestrolab/ethoscopy/blob/main"),
-        help="URL prefix used to build the 'source notebook' link in the banner")
+    group.add_argument(
+        "--page-id", type=int, help="Existing BookStack page ID to update"
+    )
+    group.add_argument(
+        "--create", action="store_true", help="Create a new page instead of updating"
+    )
+    p.add_argument(
+        "--book-id", type=int, help="BookStack book ID (required with --create)"
+    )
+    p.add_argument(
+        "--title", type=str, help="Page title. Defaults to notebook basename."
+    )
+    p.add_argument(
+        "--env-file",
+        type=Path,
+        default=DEFAULT_ENV_FILE,
+        help=f"Path to .env with BOOKSTACK_* vars (default: {DEFAULT_ENV_FILE})",
+    )
+    p.add_argument(
+        "--workdir",
+        type=Path,
+        default=DEFAULT_WORKDIR,
+        help=f"Working directory for intermediate files (default: {DEFAULT_WORKDIR})",
+    )
+    p.add_argument(
+        "--kernel",
+        default="python3",
+        help="Jupyter kernel name used to execute the notebook",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="Per-cell execution timeout in seconds"
+    )
+    p.add_argument(
+        "--stop-on-cell-error",
+        action="store_true",
+        help="Abort the publish on any cell exception. Default "
+        "behaviour is to capture cell errors in their output "
+        "and keep rendering so a broken cell doesn't suppress "
+        "every downstream figure.",
+    )
+    p.add_argument(
+        "--github-base",
+        default=("https://github.com/gilestrolab/ethoscopy/blob/main"),
+        help="URL prefix used to build the 'source notebook' link in the banner",
+    )
     args = p.parse_args()
 
     if args.create and args.book_id is None:
@@ -261,7 +349,13 @@ def main() -> int:
     executed = work / "executed.ipynb"
 
     print(f"[1/5] Executing {notebook.name} in {work}", file=sys.stderr)
-    execute_notebook(notebook, executed, args.kernel, args.timeout)
+    execute_notebook(
+        notebook,
+        executed,
+        args.kernel,
+        args.timeout,
+        allow_errors=not args.stop_on_cell_error,
+    )
 
     print("[2/5] Stripping Plotly outputs", file=sys.stderr)
     strip_plotly_outputs(executed)
@@ -273,8 +367,11 @@ def main() -> int:
     # attach uploaded images to via 'uploaded_to='.
     title = args.title or notebook.stem.replace("_", " ").strip()
     if args.create:
-        page_id = client.create_page(args.book_id, title,
-                                     markdown="_Placeholder — populated by publish_tutorials.py…_")
+        page_id = client.create_page(
+            args.book_id,
+            title,
+            markdown="_Placeholder — populated by publish_tutorials.py…_",
+        )
         print(f"[4/5] Created page id={page_id}", file=sys.stderr)
     else:
         page_id = args.page_id
@@ -284,17 +381,25 @@ def main() -> int:
     rewrite_image_refs(md_path, support_dir, client, page_id, stem)
 
     try:
-        repo_root = Path(subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=notebook.parent, text=True,
-        ).strip())
+        repo_root = Path(
+            subprocess.check_output(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=notebook.parent,
+                text=True,
+            ).strip()
+        )
         notebook_relpath = notebook.relative_to(repo_root).as_posix()
     except (subprocess.CalledProcessError, ValueError):
         notebook_relpath = notebook.name
     prepend_banner(md_path, notebook_relpath, args.github_base)
 
-    client.update_page(page_id, md_path.read_text(), name=title if args.create else None)
-    print(f"done → {base_url.rstrip('/api').rstrip('/')}/books/.../page/{page_id}", file=sys.stderr)
+    client.update_page(
+        page_id, md_path.read_text(), name=title if args.create else None
+    )
+    print(
+        f"done → {base_url.rstrip('/api').rstrip('/')}/books/.../page/{page_id}",
+        file=sys.stderr,
+    )
     return 0
 
 
