@@ -98,7 +98,7 @@ RUN pip3 install \
         pyarrow \
         tqdm \
         jupyterlab-git \
-        ethoscopy==2.1.0
+        ethoscopy==2.2.0
        # pycatch22
 
 # Pre-populate tutorial datasets inside the installed package so non-root
