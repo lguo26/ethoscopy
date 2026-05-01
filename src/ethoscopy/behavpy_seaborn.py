@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from tqdm.auto import tqdm
 
 from ethoscopy.behavpy_draw import behavpy_draw
 from ethoscopy.misc.circadian_bars import circadian_bars
@@ -3000,9 +3001,7 @@ class behavpy_seaborn(behavpy_draw):
         min_t = []
         max_t = []
 
-        for ax, data in enumerate(decoded):
-            print(f"Plotting: {data.index[0]}")
-
+        for ax, data in enumerate(tqdm(decoded, desc="Plotting", unit="fly")):
             data["bin"] = data["bin"] / (60 * 60)
             st = data["state"].to_numpy()
             time = data["bin"].to_numpy()

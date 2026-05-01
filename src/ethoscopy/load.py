@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 import pandas as pd
+from tqdm.auto import tqdm
 
 from ethoscopy.misc.validate_datetime import validate_datetime
 
@@ -74,7 +75,7 @@ def _connect_db(path):
         return sqlite3.connect(path_str)
 
 
-def download_from_remote_dir(meta, remote_dir, local_dir):
+def download_from_remote_dir(meta, remote_dir, local_dir, progress=True):
     """
     Download ethoscope data from a remote FTP server to a local directory.
 
@@ -88,6 +89,8 @@ def download_from_remote_dir(meta, remote_dir, local_dir):
             e.g. 'ftp://YOUR_SERVER//auto_generated_data//ethoscope_results'
         local_dir (str): Path to the local directory for saving .db files. Files will be saved using the FTP server's structure.
             e.g. 'C:\\Users\\YOUR_NAME\\Documents\\ethoscope_databases'
+        progress (bool, optional): If True, show a tqdm progress bar (ipywidgets-based in Jupyter,
+            text in CLI). Default is True.
 
     Returns:
         None
@@ -268,39 +271,27 @@ def download_from_remote_dir(meta, remote_dir, local_dir):
             ftp.quit()
             localfile.close()
 
-    # iterate over paths, downloading each file
-    # provide estimate download time based upon average time of previous downloads in queue
+    # iterate over paths, downloading each file. tqdm provides per-file progress
+    # plus an aggregate ETA, so we no longer need to hand-roll an estimate.
     download = partial(
         download_database,
         remote_dir=parse.netloc,
         folders=parse.path,
         local_dir=local_dir,
     )
-    times = []
 
-    for counter, j in enumerate(paths):
-        print(
-            "Downloading {}... {}/{}".format(
-                j[0].split("/")[1], counter + 1, len(paths)
-            )
-        )
-        if counter == 0:
-            start = time.time()
-            p = PurePosixPath(j[0])
-            download(work_dir=p.parents[0], file_name=p.name, file_size=j[1])
-            stop = time.time()
-            t = stop - start
-            times.append(t)
-
-        else:
-            av_time = round((np.mean(times) / 60) * (len(paths) - (counter + 1)))
-            print(f"Estimated finish time: {av_time} mins")
-            start = time.time()
-            p = PurePosixPath(j[0])
-            download(work_dir=p.parents[0], file_name=p.name, file_size=j[1])
-            stop = time.time()
-            t = stop - start
-            times.append(t)
+    iterator = tqdm(
+        paths,
+        desc="Downloading databases",
+        unit="db",
+        disable=not progress,
+    )
+    for j in iterator:
+        machine_name = j[0].split("/")[1]
+        if progress:
+            iterator.set_postfix_str(machine_name, refresh=False)
+        p = PurePosixPath(j[0])
+        download(work_dir=p.parents[0], file_name=p.name, file_size=j[1])
 
 
 def link_meta_index(metadata, local_dir):
@@ -471,6 +462,7 @@ def load_ethoscope(
     cache=None,
     FUN=None,
     verbose=True,
+    progress=True,
 ):
     """
     Load and process ethoscope data from database files.
@@ -488,7 +480,9 @@ def load_ethoscope(
             Directory structure mirrors ethoscope saved data. Cached files are in pickle format. Default is None.
         FUN (callable, optional): Function to apply individual curation to each ROI, typically using package
             generated functions (e.g., sleep_annotation). If None, data remains as found in the database. Default is None.
-        verbose (bool, optional): If True, prints information about each ROI when loading. Default is True.
+        verbose (bool, optional): If True, emits per-ROI warnings when loading fails. Default is True.
+        progress (bool, optional): If True, show a tqdm progress bar over ROIs (ipywidgets-based in
+            Jupyter, text in CLI). Default is True.
 
     Returns:
         pd.DataFrame: DataFrame containing the database data with unique IDs per fly as the index
@@ -507,101 +501,114 @@ def load_ethoscope(
     # Group ROIs by database file to reuse connections and cache metadata
     grouped_metadata = metadata.groupby("path")
 
+    pbar = tqdm(
+        total=len(metadata),
+        desc="Loading ROIs",
+        unit="roi",
+        disable=not progress,
+    )
+
     # iterate over each database file
-    for db_path, group in grouped_metadata:
-        conn = None
+    try:
+        for db_path, group in grouped_metadata:
+            conn = None
 
-        try:
-            # Open connection once per database file
-            conn = _connect_db(db_path)
+            try:
+                # Open connection once per database file
+                conn = _connect_db(db_path)
 
-            # Cache metadata queries that are the same for all ROIs in this database
-            roi_df = pd.read_sql_query("SELECT * FROM ROI_MAP", conn)
-            var_df = pd.read_sql_query("SELECT * FROM VAR_MAP", conn)
-            date = pd.read_sql_query(
-                'SELECT value FROM METADATA WHERE field = "date_time"', conn
-            )
-            if date.empty:
-                raise ValueError("No date_time found in METADATA table")
-            date_formatted = time.strftime(
-                "%Y-%m-%d %H:%M:%S", time.gmtime(float(date.iloc[0].iloc[0]))
-            )
+                # Cache metadata queries that are the same for all ROIs in this database
+                roi_df = pd.read_sql_query("SELECT * FROM ROI_MAP", conn)
+                var_df = pd.read_sql_query("SELECT * FROM VAR_MAP", conn)
+                date = pd.read_sql_query(
+                    'SELECT value FROM METADATA WHERE field = "date_time"', conn
+                )
+                if date.empty:
+                    raise ValueError("No date_time found in METADATA table")
+                date_formatted = time.strftime(
+                    "%Y-%m-%d %H:%M:%S", time.gmtime(float(date.iloc[0].iloc[0]))
+                )
 
-            # Process each ROI in this database
-            for i in group.index:
-                file_info = metadata.iloc[metadata.index.get_loc(i), :]
+                # Process each ROI in this database
+                for i in group.index:
+                    file_info = metadata.iloc[metadata.index.get_loc(i), :]
 
-                try:
-                    if verbose is True:
-                        print(
-                            "Loading ROI_{} from {}".format(
-                                file_info["region_id"], file_info["machine_name"]
+                    try:
+                        if progress:
+                            pbar.set_postfix_str(
+                                f"{file_info['machine_name']} ROI_{file_info['region_id']}",
+                                refresh=False,
                             )
+
+                        # Use optimized single ROI reader with cached connection and metadata
+                        roi_1 = read_single_roi_optimized(
+                            file_info,
+                            conn,
+                            roi_df,
+                            var_df,
+                            date_formatted,
+                            min_time,
+                            max_time,
+                            reference_hour,
+                            cache,
                         )
 
-                    # Use optimized single ROI reader with cached connection and metadata
-                    roi_1 = read_single_roi_optimized(
-                        file_info,
-                        conn,
-                        roi_df,
-                        var_df,
-                        date_formatted,
-                        min_time,
-                        max_time,
-                        reference_hour,
-                        cache,
-                    )
+                        if roi_1 is None:
+                            if verbose is True:
+                                tqdm.write(
+                                    "ROI_{} from {} was unable to load due to an error formatting roi".format(
+                                        file_info["region_id"],
+                                        file_info["machine_name"],
+                                    )
+                                )
+                            continue
 
-                    if roi_1 is None:
+                        if FUN is not None:
+                            roi_1 = FUN(roi_1)
+
+                        if roi_1 is None:
+                            if verbose is True:
+                                tqdm.write(
+                                    "ROI_{} from {} was unable to load due to an error in applying the function".format(
+                                        file_info["region_id"],
+                                        file_info["machine_name"],
+                                    )
+                                )
+                            continue
+
+                        # Check if 'id' column already exists, if not insert it
+                        if "id" not in roi_1.columns:
+                            roi_1.insert(0, "id", file_info["id"])
+                        else:
+                            # Replace existing id with the one from metadata for consistency
+                            roi_1["id"] = file_info["id"]
+
+                        # Add to list instead of concatenating in loop
+                        roi_data_list.append(roi_1)
+
+                    except Exception as e:
                         if verbose is True:
-                            print(
-                                "ROI_{} from {} was unable to load due to an error formatting roi".format(
-                                    file_info["region_id"], file_info["machine_name"]
+                            tqdm.write(
+                                "ROI_{} from {} was unable to load due to an error loading roi: {}".format(
+                                    file_info["region_id"],
+                                    file_info["machine_name"],
+                                    str(e),
                                 )
                             )
+                            import traceback
+
+                            tqdm.write("Full traceback:")
+                            tqdm.write(traceback.format_exc())
                         continue
+                    finally:
+                        pbar.update(1)
 
-                    if FUN is not None:
-                        roi_1 = FUN(roi_1)
-
-                    if roi_1 is None:
-                        if verbose is True:
-                            print(
-                                "ROI_{} from {} was unable to load due to an error in applying the function".format(
-                                    file_info["region_id"], file_info["machine_name"]
-                                )
-                            )
-                        continue
-
-                    # Check if 'id' column already exists, if not insert it
-                    if "id" not in roi_1.columns:
-                        roi_1.insert(0, "id", file_info["id"])
-                    else:
-                        # Replace existing id with the one from metadata for consistency
-                        roi_1["id"] = file_info["id"]
-
-                    # Add to list instead of concatenating in loop
-                    roi_data_list.append(roi_1)
-
-                except Exception as e:
-                    if verbose is True:
-                        print(
-                            "ROI_{} from {} was unable to load due to an error loading roi: {}".format(
-                                file_info["region_id"],
-                                file_info["machine_name"],
-                                str(e),
-                            )
-                        )
-                        import traceback
-
-                        print("Full traceback:")
-                        traceback.print_exc()
-                    continue
-
-        finally:
-            # Close connection when done with this database
-            if conn:
-                conn.close()
+            finally:
+                # Close connection when done with this database
+                if conn:
+                    conn.close()
+    finally:
+        pbar.close()
 
     # Concatenate all data at once for much better performance
     if roi_data_list:
@@ -612,7 +619,7 @@ def load_ethoscope(
     return data
 
 
-def load_ethoscope_metadata(metadata):
+def load_ethoscope_metadata(metadata, progress=True):
     """
     Extract metadata from ethoscope database files.
 
@@ -621,6 +628,8 @@ def load_ethoscope_metadata(metadata):
 
     Args:
         metadata (pd.DataFrame): Metadata dataframe as returned from link_meta_index function
+        progress (bool, optional): If True, show a tqdm progress bar (ipywidgets-based in Jupyter,
+            text in CLI). Default is True.
 
     Returns:
         pd.DataFrame: DataFrame containing the metadata from the METADATA table in each ethoscope database,
@@ -724,7 +733,12 @@ def load_ethoscope_metadata(metadata):
     rows = []
 
     # iterate over each ethoscope in the metadata df
-    for i in meta_df["path"]:
+    for i in tqdm(
+        meta_df["path"],
+        desc="Reading metadata",
+        unit="db",
+        disable=not progress,
+    ):
         row = get_meta(i)
         rows.append(row)
 
@@ -966,14 +980,14 @@ def read_single_roi_optimized(
             # Handle "database disk image is malformed" errors
             # This can occur with WAL-mode databases on read-only mounts
             if "malformed" in str(e).lower() or "disk image" in str(e).lower():
-                print(
+                tqdm.write(
                     f"Warning: Database error for ROI {file['region_id']}, attempting retry with fresh connection..."
                 )
 
                 # Get database path from file metadata
                 db_path = file.get("path")
                 if not db_path:
-                    print(
+                    tqdm.write(
                         "Error: Cannot retry - database path not found in file metadata"
                     )
                     raise
@@ -983,9 +997,9 @@ def read_single_roi_optimized(
                 try:
                     retry_conn = _connect_db(db_path)
                     data = pd.read_sql_query(sql_query, retry_conn)
-                    print(f"Success: ROI {file['region_id']} loaded on retry")
+                    tqdm.write(f"Success: ROI {file['region_id']} loaded on retry")
                 except Exception as retry_error:
-                    print(
+                    tqdm.write(
                         f"Error: Retry failed for ROI {file['region_id']}: {retry_error}"
                     )
                     raise
@@ -1032,5 +1046,5 @@ def read_single_roi_optimized(
         return data
 
     except Exception as e:
-        print(f"Error reading ROI {file['region_id']}: {e}")
+        tqdm.write(f"Error reading ROI {file['region_id']}: {e}")
         return None

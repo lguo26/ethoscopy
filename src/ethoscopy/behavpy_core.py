@@ -9,6 +9,7 @@ from hmmlearn import hmm
 from scipy.signal import find_peaks
 from scipy.stats import zscore
 from tabulate import tabulate
+from tqdm.auto import tqdm
 
 from ethoscopy.analyse import max_velocity_detector
 from ethoscopy.misc.general_functions import concat, rle
@@ -2330,9 +2331,7 @@ class behavpy_core(pd.DataFrame):
         seq_test = np.concatenate(test, 0)
         seq_test = seq_test.reshape(-1, 1)
 
-        for i in range(iterations):
-            print(f"Iteration {i+1} of {iterations}")
-
+        for i in tqdm(range(iterations), desc="HMM training", unit="iter"):
             init_params = ""
             # h = hmm.MultinomialHMM(n_components = n_states, n_iter = hmm_iterations, tol = tol, params = 'ste', verbose = verbose)
             h = hmm.CategoricalHMM(
@@ -2397,11 +2396,13 @@ class behavpy_core(pd.DataFrame):
             h.fit(seq_train, len_seq_train)
 
             # Boolean output of if the number of runs convererged on set of appropriate probabilites for s, t, an e
-            print(
+            tqdm.write(
                 "True Convergence:"
                 + str(h.monitor_.history[-1] - h.monitor_.history[-2] < h.monitor_.tol)
             )
-            print("Final log liklihood score:" + str(h.score(seq_train, len_seq_train)))
+            tqdm.write(
+                "Final log liklihood score:" + str(h.score(seq_train, len_seq_train))
+            )
 
             # On first iteration save and print the first trained matrix
             if i == 0:
@@ -2410,9 +2411,11 @@ class behavpy_core(pd.DataFrame):
                     if h.score(seq_test, len_seq_test) > h_old.score(
                         seq_test, len_seq_test
                     ):
-                        print("New Matrix:")
+                        tqdm.write("New Matrix:")
                         df_t = pd.DataFrame(h.transmat_, index=states, columns=states)
-                        print(tabulate(df_t, headers="keys", tablefmt="github") + "\n")
+                        tqdm.write(
+                            tabulate(df_t, headers="keys", tablefmt="github") + "\n"
+                        )
 
                         with open(file_name, "wb") as file:
                             pickle.dump(h, file)
@@ -2426,9 +2429,9 @@ class behavpy_core(pd.DataFrame):
                 if h.score(seq_test, len_seq_test) > h_old.score(
                     seq_test, len_seq_test
                 ):
-                    print("New Matrix:")
+                    tqdm.write("New Matrix:")
                     df_t = pd.DataFrame(h.transmat_, index=states, columns=states)
-                    print(tabulate(df_t, headers="keys", tablefmt="github") + "\n")
+                    tqdm.write(tabulate(df_t, headers="keys", tablefmt="github") + "\n")
                     with open(file_name, "wb") as file:
                         pickle.dump(h, file)
 

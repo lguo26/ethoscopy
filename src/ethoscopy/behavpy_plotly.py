@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from scipy.stats import zscore
+from tqdm.auto import tqdm
 
 from ethoscopy.behavpy_draw import behavpy_draw
 from ethoscopy.behavpy_seaborn import behavpy_seaborn
@@ -3559,10 +3560,16 @@ class behavpy_plotly(behavpy_draw):
         min_t = []
         max_t = []
 
-        for c, (df, b) in enumerate(zip(decoded, b_list)):
+        for c, (df, b) in enumerate(
+            tqdm(
+                list(zip(decoded, b_list)),
+                desc="Plotting",
+                unit="fly",
+                total=len(decoded),
+            )
+        ):
             df["colour"] = df["previous_state"].map(colours_index)
             id = df.first_valid_index()
-            print(f"Plotting: {id}")
 
             if stim_df is not None:
                 df2 = stim_df.xmv("id", id)
