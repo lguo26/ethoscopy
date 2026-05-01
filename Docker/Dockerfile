@@ -87,8 +87,17 @@ RUN pip3 install \
         seaborn \
         bokeh \
         lifelines \
+        ipywidgets \
+        ipympl \
         opencv-python \
         mysql-connector \
+        scikit-learn \
+        statsmodels \
+        pingouin \
+        openpyxl \
+        pyarrow \
+        tqdm \
+        jupyterlab-git \
         ethoscopy==2.1.0
        # pycatch22
 
