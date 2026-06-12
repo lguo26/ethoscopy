@@ -2966,3 +2966,301 @@ class behavpy_core(pd.DataFrame):
                 long_palette=self.attrs["lg_pal"],
                 check=True,
             )
+
+    # ------------------------------------------------------------------
+    # Kaplan-Meier survival analysis with ROI-based deduplication
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def kaplan_meier_estimate(times, events):
+        """
+        Compute Kaplan-Meier survival estimate with Greenwood confidence intervals.
+
+        Parameters
+        ----------
+        times : array-like
+            Time to event or censoring (hours).
+        events : array-like
+            1 = event (death), 0 = censored.
+
+        Returns
+        -------
+        pd.DataFrame with columns: time, n_at_risk, n_events, n_censored,
+        survival, ci_lower, ci_upper
+        """
+        import numpy as np
+
+        times = np.asarray(times, dtype=float)
+        events = np.asarray(events, dtype=int)
+
+        order = np.argsort(times)
+        times_sorted = times[order]
+        events_sorted = events[order]
+
+        unique_times = np.unique(times_sorted[events_sorted == 1])
+        if len(unique_times) == 0:
+            unique_times = np.unique(times_sorted)
+
+        records = []
+        survival = 1.0
+        greenwood_var = 0.0
+
+        for t in unique_times:
+            at_risk = np.sum(times_sorted >= t)
+            if at_risk == 0:
+                continue
+
+            n_events = np.sum((times_sorted == t) & (events_sorted == 1))
+            n_censored = np.sum((times_sorted == t) & (events_sorted == 0))
+
+            if n_events > 0:
+                survival *= (1 - n_events / at_risk)
+                if at_risk > n_events:
+                    greenwood_var += n_events / (at_risk * (at_risk - n_events))
+                else:
+                    greenwood_var += n_events / (at_risk * max(1, at_risk - n_events))
+
+            se_log = np.sqrt(max(greenwood_var, 0))
+            z = 1.96
+            ci_lower = np.exp(np.log(max(survival, 1e-10)) - z * se_log)
+            ci_upper = np.exp(np.log(max(survival, 1e-10)) + z * se_log)
+            ci_lower = np.clip(ci_lower, 0, 1)
+            ci_upper = np.clip(ci_upper, 0, 1)
+
+            records.append({
+                'time': t,
+                'n_at_risk': at_risk,
+                'n_events': n_events,
+                'n_censored': n_censored,
+                'survival': survival,
+                'ci_lower': ci_lower,
+                'ci_upper': ci_upper,
+            })
+
+        if len(records) == 0:
+            return pd.DataFrame([{
+                'time': 0, 'n_at_risk': len(times), 'n_events': 0, 'n_censored': 0,
+                'survival': 1.0, 'ci_lower': 1.0, 'ci_upper': 1.0
+            }])
+
+        result = pd.DataFrame(records)
+
+        # Extend step to last censored time so the curve doesn't
+        # stop at the final death.
+        max_time = times.max()
+        last_event_time = result['time'].iloc[-1]
+        if max_time > last_event_time:
+            last_row = result.iloc[-1].to_dict()
+            last_row['time'] = max_time
+            last_row['n_events'] = 0
+            last_row['n_censored'] = 0
+            result = pd.concat(
+                [result, pd.DataFrame([last_row])], ignore_index=True
+            )
+
+        return result
+
+    @staticmethod
+    def _wrapped_km_death_detect(data, t_column='t', mov_column='moving',
+                                  time_window=24, prop_immobile=0.01,
+                                  resolution=24):
+        """
+        Detect death time for a single fly based on sustained immobility.
+
+        Returns death timestamp (seconds) or None if no death detected.
+        """
+        import numpy as np
+
+        if resolution <= 0 or resolution > time_window:
+            resolution = max(1, time_window)
+
+        time_window_s = 60 * 60 * time_window
+        d = data[[t_column, mov_column]].copy()
+
+        t_min = d[t_column].min()
+        t_max = d[t_column].max()
+
+        step = max(1, int(np.floor(time_window_s / resolution)))
+        target_t = np.arange(int(t_min), int(t_max), step)
+
+        if len(target_t) == 0:
+            return None
+
+        local_means = np.array([
+            d[d[t_column].between(i, i + time_window_s)][mov_column].mean()
+            for i in target_t
+        ])
+
+        death_points = np.where(local_means <= prop_immobile)[0]
+        if len(death_points) == 0:
+            return None
+
+        return target_t[death_points[0]]
+
+    def _build_km_survival_table(self, t_column='t', mov_column='moving',
+                                  time_window=24, prop_immobile=0.01,
+                                  resolution=24, cumulative=False):
+        """
+        Build a per-fly survival table with ROI-based deduplication.
+
+        Flies are identified by (machine_name, ROI) rather than by ID,
+        so the same fly re-detected after a machine restart is tracked
+        as one individual.  Death is detected via sustained immobility
+        and only checked in the fly's *last* tracking segment.
+
+        Parameters
+        ----------
+        cumulative : bool
+            If True, T is computed as continuous hours from the earliest
+            data point across all flies.  Adds a 'T_cumulative' column.
+
+        Returns
+        -------
+        pd.DataFrame with columns:
+            id, T, E, species, machine_name, roi, start_time, end_time,
+            n_segments (and T_cumulative if cumulative=True)
+        """
+        import numpy as np
+
+        data = self.reset_index().copy()
+        data['id'] = data['id'].astype(str)
+
+        # Merge species from meta if available
+        meta = self.meta.reset_index()
+        if 'id' in meta.columns:
+            meta['id'] = meta['id'].astype(str)
+        if 'species' in meta.columns:
+            data = data.merge(meta[['id', 'species']], on='id', how='left')
+
+        # Extract machine name & ROI from id
+        if 'machine_name' not in data.columns:
+            mach_num = data['id'].str.extract(r'_(\d{3})\w+\|')[0]
+            data['machine_name'] = 'ETHOSCOPE_' + mach_num
+        data['roi'] = data['id'].str.extract(r'\|(\d+)$')[0]
+        data['fly_key'] = data['machine_name'] + '_ROI' + data['roi'].astype(str)
+
+        results = []
+        for fly_key, fly_data in data.groupby('fly_key', sort=False):
+            if len(fly_data) == 0:
+                continue
+
+            fly_data = fly_data.sort_values(t_column)
+            machine = fly_data['machine_name'].iloc[0]
+            roi = fly_data['roi'].iloc[0]
+            species = (fly_data['species'].iloc[0]
+                       if 'species' in fly_data.columns else 'unknown')
+
+            # Split into continuous segments (gap > 1 h = restart)
+            t_vals = fly_data[t_column].values
+            gaps = np.diff(t_vals)
+            segment_breaks = np.where(gaps > 3600)[0]
+
+            if len(segment_breaks) == 0:
+                segments = [fly_data]
+            else:
+                segments = []
+                prev = 0
+                for brk in segment_breaks:
+                    segments.append(fly_data.iloc[prev:brk + 1])
+                    prev = brk + 1
+                segments.append(fly_data.iloc[prev:])
+
+            first_segment = segments[0]
+            last_segment = segments[-1]
+            t_first = first_segment[t_column].min()
+            t_last = last_segment[t_column].max()
+
+            # Death detection only in LAST segment
+            death_time = self._wrapped_km_death_detect(
+                last_segment, t_column=t_column, mov_column=mov_column,
+                time_window=time_window, prop_immobile=prop_immobile,
+                resolution=resolution
+            )
+
+            if death_time is not None:
+                T_hours = (death_time - t_first) / 3600.0
+                E = 1
+                end_time = death_time
+            else:
+                T_hours = (t_last - t_first) / 3600.0
+                E = 0
+                end_time = t_last
+
+            results.append({
+                'id': first_segment['id'].iloc[0],
+                'T': T_hours,
+                'E': E,
+                'species': species,
+                'machine_name': machine,
+                'roi': roi,
+                'start_time': t_first,
+                'end_time': end_time,
+                'n_segments': len(segments),
+            })
+
+        surv_df = pd.DataFrame(results)
+
+        if cumulative:
+            # Use end_time / 3600 directly (seconds → hours).
+            # If the user called df.baseline(column='baseline'), the t
+            # values are already shifted by baseline*24h — no extra
+            # offset needed.  Same time calc as plot_overtime.
+            surv_df['T_cumulative'] = surv_df['end_time'] / 3600.0
+
+        return surv_df
+
+    def count_unique_flies(self, timepoints=None, t_column='t'):
+        """
+        Count unique flies (by machine_name, ROI) active at specific
+        timepoints.  Returns the *maximum* count — the "definition 2"
+        cross-validation of the true n per genotype.
+
+        Parameters
+        ----------
+        timepoints : list of float, optional
+            Hours at which to count. Default: [0, 10, 50, 100, 150].
+        t_column : str
+
+        Returns
+        -------
+        dict : {timepoint: n_flies_per_species_dict}
+        max_n : dict, {species: max count across all timepoints}
+        """
+        if timepoints is None:
+            timepoints = [0, 10, 50, 100, 150]
+
+        data = self.reset_index().copy()
+        data['id'] = data['id'].astype(str)
+
+        # Merge species from meta
+        meta = self.meta.reset_index()
+        if 'id' in meta.columns:
+            meta['id'] = meta['id'].astype(str)
+        if 'species' in meta.columns:
+            data = data.merge(meta[['id', 'species']], on='id', how='left')
+
+        # Machine + ROI
+        if 'machine_name' not in data.columns:
+            data['machine_name'] = 'ETHOSCOPE_' + data['id'].str.extract(r'_(\d{3})\w+\|')[0]
+        data['roi'] = data['id'].str.extract(r'\|(\d+)$')[0]
+        data['fly_key'] = data['machine_name'] + '_ROI' + data['roi'].astype(str)
+
+        t_min = data[t_column].min()
+        species_list = sorted(data['species'].dropna().unique())
+
+        result = {}
+        max_per_species = {sp: 0 for sp in species_list}
+
+        for tp in timepoints:
+            tp_sec = t_min + tp * 3600
+            active = data[(data[t_column] >= tp_sec) & (data[t_column] < tp_sec + 3600)]
+            flies = active[['fly_key', 'species']].drop_duplicates()
+
+            counts = {}
+            for sp in species_list:
+                n = len(flies[flies['species'] == sp])
+                counts[sp] = n
+                max_per_species[sp] = max(max_per_species[sp], n)
+            result[f't={tp}h'] = counts
+
+        return result, max_per_species

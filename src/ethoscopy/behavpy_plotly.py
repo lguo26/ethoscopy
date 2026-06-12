@@ -1539,6 +1539,116 @@ class behavpy_plotly(behavpy_draw):
 
         return fig
 
+    # Kaplan-Meier survival (ROI-dedup) section
+
+    def km_survival_plot(
+        self,
+        facet_col: None | str = None,
+        facet_arg: None | str = None,
+        facet_labels: None | str = None,
+        title: str = "Kaplan-Meier Survival",
+        t_column: str = "t",
+        mov_column: str = "moving",
+        time_window: int = 24,
+        prop_immobile: float = 0.01,
+        resolution: int = 24,
+        show_ci: bool = True,
+    ):
+        """
+        Kaplan-Meier survival plot (plotly) with ROI-based deduplication.
+
+        See ``behavpy_seaborn.km_survival_plot`` for parameter details.
+
+        Returns
+        -------
+        fig : plotly.graph_objects.Figure
+        """
+        import numpy as np
+        import plotly.graph_objects as go
+
+        surv_df = self._build_km_survival_table(
+            t_column=t_column, mov_column=mov_column,
+            time_window=time_window, prop_immobile=prop_immobile,
+            resolution=resolution
+        )
+
+        if facet_col and facet_col in surv_df.columns:
+            if facet_arg is None:
+                facet_arg = sorted(surv_df[facet_col].dropna().unique())
+            if facet_labels is None:
+                facet_labels = list(facet_arg)
+        else:
+            facet_arg = ['all']
+            facet_labels = ['all']
+            surv_df['_facet'] = 'all'
+            facet_col = '_facet'
+
+        plot_df = surv_df[surv_df[facet_col].isin(facet_arg)]
+
+        # Cross-validate n: def1 vs def2
+        _, def2_max = self.count_unique_flies()
+        if facet_col and facet_col in surv_df.columns:
+            def1_counts = {arg: len(plot_df[plot_df[facet_col] == arg])
+                          for arg in facet_arg}
+        else:
+            def1_counts = {'all': len(plot_df)}
+
+        validated_n = {}
+        for arg, label in zip(facet_arg, facet_labels):
+            d1 = def1_counts.get(arg, 0)
+            d2 = def2_max.get(arg, d1)
+            validated_n[label] = max(d1, d2)
+
+        fig = go.Figure()
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+                  '#9467bd', '#8c564b']
+
+        for idx, (arg, label) in enumerate(zip(facet_arg, facet_labels)):
+            group_data = plot_df[plot_df[facet_col] == arg]
+            if len(group_data) == 0:
+                continue
+            km_df = self.kaplan_meier_estimate(
+                group_data['T'].values, group_data['E'].values)
+            n_flies = validated_n[label]
+            color = colors[idx % len(colors)]
+
+            plot_t = np.concatenate([[0.0], km_df['time'].values])
+            plot_s = np.concatenate([[1.0], km_df['survival'].values])
+
+            fig.add_trace(go.Scatter(
+                x=plot_t, y=plot_s,
+                mode='lines',
+                name=f'{label} (n={n_flies})',
+                line=dict(color=color, shape='hv', width=2),
+                hovertemplate=f'{label}<br>Time: %{{x:.0f}} h'
+                              f'<br>Survival: %{{y:.1%}}<extra></extra>'
+            ))
+
+            if show_ci:
+                plot_ci_l = np.concatenate([[1.0], km_df['ci_lower'].values])
+                plot_ci_u = np.concatenate([[1.0], km_df['ci_upper'].values])
+                t_fill = np.concatenate([plot_t, plot_t[::-1]])
+                s_fill = np.concatenate([plot_ci_l, plot_ci_u[::-1]])
+                # RGBA from hex
+                r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+                fig.add_trace(go.Scatter(
+                    x=t_fill, y=s_fill,
+                    fill='toself',
+                    fillcolor=f'rgba({r},{g},{b},0.12)',
+                    mode='lines', line=dict(width=0),
+                    showlegend=False, hoverinfo='skip',
+                ))
+
+        fig.update_layout(
+            title=title,
+            xaxis_title='Time (hours)',
+            yaxis_title='Survival probability',
+            yaxis=dict(tickformat='.0%', range=[-0.02, 1.05]),
+            legend=dict(yanchor='bottom', y=0.01, xanchor='left', x=0.01),
+            template='plotly_white',
+        )
+        return fig
+
     # Response AGO/mAGO section
 
     def plot_response_quantify(
