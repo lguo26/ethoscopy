@@ -1242,6 +1242,184 @@ class behavpy_seaborn(behavpy_draw):
 
         return fig
 
+    # Kaplan-Meier survival (ROI-dedup) section
+
+    def km_survival_plot(
+        self,
+        facet_col: None | str = None,
+        facet_arg: None | str = None,
+        facet_labels: None | str = None,
+        title: str = "Kaplan-Meier Survival",
+        t_column: str = "t",
+        mov_column: str = "moving",
+        time_window: int = 24,
+        prop_immobile: float = 0.01,
+        resolution: int = 24,
+        figsize: tuple = (8, 5),
+        show_ci: bool = False,
+        grid: bool = True,
+        censoring_marks: bool = False,
+        cumulative: bool = False,
+        time_unit: str = 'hours',
+    ):
+        """
+        Kaplan-Meier survival plot with ROI-based deduplication.
+
+        Unlike ``survival_plot`` (which counts tracking end as death), this
+        method uses immobility-based death detection and properly censors
+        flies that are alive when tracking ends (e.g. due to machine
+        restarts or experiment end).  Flies are identified by (machine, ROI)
+        so that the same fly re-detected after a restart is tracked as ONE
+        individual.
+
+        Parameters
+        ----------
+        facet_col : str, optional
+            Metadata column for faceting (e.g. 'species').
+        facet_arg : list, optional
+            Values of facet_col to include.
+        facet_labels : list, optional
+            Display labels for each facet_arg.
+        title : str
+        t_column, mov_column : str
+        time_window : int
+            Hours of immobility required to declare death.
+        prop_immobile : float
+            Mean movement fraction below which fly is considered dead.
+        resolution : int
+            Segments per time window.
+        figsize : tuple
+        show_ci : bool
+            Show 95 % Greenwood confidence band.
+        grid : bool
+        censoring_marks : bool
+            Show tick marks for censored observations.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        """
+        import numpy as np
+
+        surv_df = self._build_km_survival_table(
+            t_column=t_column, mov_column=mov_column,
+            time_window=time_window, prop_immobile=prop_immobile,
+            resolution=resolution, cumulative=cumulative
+        )
+
+        # Use cumulative time if available
+        time_col = 'T_cumulative' if cumulative and 'T_cumulative' in surv_df.columns else 'T'
+
+        # Determine facet groups
+        if facet_col and facet_col in surv_df.columns:
+            if facet_arg is None:
+                facet_arg = sorted(surv_df[facet_col].dropna().unique())
+            if facet_labels is None:
+                facet_labels = list(facet_arg)
+        else:
+            facet_arg = ['all']
+            facet_labels = ['all']
+            surv_df['_facet'] = 'all'
+            facet_col = '_facet'
+
+        plot_df = surv_df[surv_df[facet_col].isin(facet_arg)]
+
+        # Cross-validate n: def1 (unique machine+ROI) vs def2 (max at timepoints)
+        _, def2_max = self.count_unique_flies()
+        if facet_col and facet_col in surv_df.columns:
+            def1_counts = {arg: len(plot_df[plot_df[facet_col] == arg])
+                          for arg in facet_arg}
+        else:
+            def1_counts = {'all': len(plot_df)}
+
+        # Use the *larger* of def1/def2, warn if they disagree
+        validated_n = {}
+        for arg, label in zip(facet_arg, facet_labels):
+            d1 = def1_counts.get(arg, 0)
+            # def2 maps species values -> count; match to facet_arg
+            d2 = def2_max.get(arg, d1)  # fallback to d1 if species not in def2
+            validated_n[label] = max(d1, d2)
+            if d1 != d2 and d2 > 0:
+                import warnings
+                warnings.warn(
+                    f'{label}: def1 (unique ROI)={d1}, def2 (max at timepoints)={d2}. '
+                    f'Using n={max(d1, d2)}.'
+                )
+
+        # Compute KM per group
+        km_results = {}
+        for arg, label in zip(facet_arg, facet_labels):
+            group_data = plot_df[plot_df[facet_col] == arg]
+            if len(group_data) == 0:
+                continue
+            km_df = self.kaplan_meier_estimate(
+                group_data[time_col].values, group_data['E'].values)
+            km_results[label] = (km_df, validated_n[label])
+
+        # ---- Plot ----
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        palette = {label: colors[i % len(colors)]
+                   for i, label in enumerate(facet_labels)}
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        time_div = 24.0 if time_unit == 'days' else 1.0
+
+        for label, (km_df, n_flies) in km_results.items():
+            color = palette.get(label, 'black')
+
+            plot_t = np.concatenate([[0.0], km_df['time'].values]) / time_div
+            plot_s = np.concatenate([[1.0], km_df['survival'].values])
+            plot_ci_l = np.concatenate([[1.0], km_df['ci_lower'].values])
+            plot_ci_u = np.concatenate([[1.0], km_df['ci_upper'].values])
+
+            ax.step(plot_t, plot_s, where='post', color=color,
+                    label=f'{label} (n={n_flies})', linewidth=2)
+
+            if show_ci:
+                ax.fill_between(plot_t, plot_ci_l, plot_ci_u,
+                                step='post', color=color, alpha=0.12)
+
+            # Censoring marks
+            if censoring_marks:
+                cens = plot_df[(plot_df[facet_col] ==
+                                facet_arg[facet_labels.index(label)]) &
+                               (plot_df['E'] == 0)]
+                for _, fly in cens.iterrows():
+                    tf = fly[time_col] / time_div
+                    sv = 1.0
+                    for j in range(len(plot_t)):
+                        if j == len(plot_t) - 1 or tf < plot_t[j + 1]:
+                            sv = plot_s[j]
+                            break
+                    ax.plot(tf, sv, '|', color=color, markersize=5,
+                            alpha=0.6, markeredgewidth=1)
+
+        time_label = 'Time (days)' if time_unit == 'days' else 'Time (hours)'
+        ax.set_xlabel(time_label)
+        ax.set_ylabel('Survival probability')
+        ax.set_title(title)
+        ax.set_xlim(0, plot_df[time_col].max() / time_div * 1.02)
+        ax.set_ylim(-0.02, 1.05)
+        ax.legend(loc='lower left', frameon=True)
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda y, _: f'{y:.0%}'))
+
+        if grid:
+            ax.grid(True, alpha=0.2, linestyle='--')
+            ax.set_axisbelow(True)
+
+        n_dead = surv_df['E'].sum()
+        n_total = len(surv_df)
+        ax.text(0.99, 0.02,
+                f'{n_dead}/{n_total} deaths | '
+                f'tw={time_window}h pi={prop_immobile}',
+                transform=ax.transAxes, fontsize=7,
+                ha='right', va='bottom', color='gray', style='italic')
+
+        plt.tight_layout()
+        return fig
+
     # Response AGO/mAGO section
 
     def plot_response_quantify(
