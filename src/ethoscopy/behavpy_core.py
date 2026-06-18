@@ -1181,12 +1181,14 @@ class behavpy_core(pd.DataFrame):
                 )
             )
         )
-        local_means = np.array(
-            [
-                d[d[time_var].between(i, i + time_window)][moving_var].mean()
-                for i in target_t
-            ]
-        )
+        local_means = np.full(len(target_t), np.nan)
+        for idx, i in enumerate(target_t):
+            mask = d[time_var].between(i, i + time_window)
+            n_pts = mask.sum()
+            # Require ≥ 75% of expected data points (18h out of 24h)
+            min_pts = (time_window / 10.0) * 0.75
+            if n_pts >= min_pts:
+                local_means[idx] = d.loc[mask, moving_var].mean()
 
         # Find indices where animal is considered dead
         death_points = np.where(local_means <= prop_immobile)[0]
