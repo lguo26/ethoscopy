@@ -3190,24 +3190,39 @@ class behavpy_core(pd.DataFrame):
             t_first = f_t[first_s]
             t_last = f_t[last_e - 1]
 
-            # Death detection on LAST segment only (array-based)
-            seg_t = f_t[last_s:last_e]
-            seg_mov = f_mov[last_s:last_e]
-
+            # Death detection on ALL segments — use the earliest death
+            # (flies re-recorded across weeks may appear dead from the start
+            #  of later segments, so checking only the last segment misses
+            #  the true death in an earlier segment)
             death_time = None
-            t_min = seg_t[0]
-            t_max = seg_t[-1]
-            target_t = np.arange(int(t_min), int(t_max), step)
+            for seg_idx in range(len(seg_indices)):
+                seg_s, seg_e = seg_indices[seg_idx]
+                seg_t = f_t[seg_s:seg_e]
+                seg_mov = f_mov[seg_s:seg_e]
 
-            if len(target_t) > 0:
-                local_means = np.array([
-                    seg_mov[(seg_t >= i) & (seg_t < i + time_window_s)].mean()
-                    for i in target_t
-                ])
-                death_points = np.where(local_means <= prop_immobile)[0]
-                if len(death_points) > 0:
-                    first_dp = death_points[0]
-                    death_time = target_t[first_dp]
+                t_min = seg_t[0]
+                t_max = seg_t[-1]
+                target_t = np.arange(int(t_min), int(t_max), step)
+
+                if len(target_t) > 0:
+                    # Evaluate each sliding window, but skip those at segment
+                    # boundaries that have too little data (e.g. machine stops).
+                    # Without this, a brief nap in the last few data points of
+                    # a short segment can trigger a false death.
+                    local_means = np.full(len(target_t), np.nan)
+                    for idx, i in enumerate(target_t):
+                        mask = (seg_t >= i) & (seg_t < i + time_window_s)
+                        n_pts = mask.sum()
+                        # Require ≥ 75% of expected data points (18h out of 24h)
+                        min_pts = (time_window_s / 10.0) * 0.75
+                        if n_pts >= min_pts:
+                            local_means[idx] = seg_mov[mask].mean()
+                    death_points = np.where(local_means <= prop_immobile)[0]
+                    if len(death_points) > 0:
+                        first_dp = death_points[0]
+                        seg_death_time = target_t[first_dp]
+                        if death_time is None or seg_death_time < death_time:
+                            death_time = seg_death_time
 
             if death_time is not None:
                 T_hours = (death_time - t_first) / 3600.0
