@@ -3519,3 +3519,165 @@ class behavpy_seaborn(behavpy_draw):
             plt.grid(axis="y")
 
         return fig
+
+    def plot_sleep_bouts(
+        self,
+        sleep_column="asleep",
+        facet_col=None,
+        facet_arg=None,
+        facet_labels=None,
+        bin_size=1,
+        max_bins=60,
+        time_immobile=5,
+        asleep=True,
+        title="",
+        t_column="t",
+        grids=False,
+        figsize=(0, 0),
+        bar_width=None,
+        xrange=None,
+    ):
+        """
+        Generates a seaborn/matplotlib histogram showing the distribution of
+        sleep/wake bouts.
+
+        Uses ``sleep_bout_analysis`` internally to generate the data, then
+        produces a matplotlib bar chart with overlaid groups and error bars.
+
+        Args:
+            sleep_column (str, optional): Column containing boolean sleep state
+                data. Defaults to ``'asleep'``.
+            facet_col (str, optional): Metadata column to facet by.
+                Defaults to ``None``.
+            facet_arg (list, optional): Groups from *facet_col* to include.
+                If ``None``, all distinct groups are used. Defaults to ``None``.
+            facet_labels (list, optional): Display labels for facet groups.
+                If ``None``, labels from metadata are used. Defaults to ``None``.
+            bin_size (int, optional): Histogram bin width in minutes.
+                Defaults to ``1``.
+            max_bins (int, optional): Maximum number of bins. Defaults to ``60``.
+            time_immobile (int, optional): Minimum bout duration in minutes to
+                include (5-minute Drosophila sleep rule). Defaults to ``5``.
+            asleep (bool, optional): ``True`` to plot sleep bouts, ``False`` for
+                wake bouts. Defaults to ``True``.
+            title (str, optional): Plot title. Defaults to ``''``.
+            t_column (str, optional): Timestamp column name (seconds).
+                Defaults to ``'t'``.
+            grids (bool, optional): Show grid lines. Defaults to ``False``.
+            figsize (tuple, optional): Figure size as ``(width, height)``.
+                ``(0, 0)`` auto-sizes. Defaults to ``(0, 0)``.
+            bar_width (float, optional): Width of each bar in data-coordinate units
+                (minutes). ``None`` auto-calculates based on number of facet groups.
+                Defaults to ``None``.
+            xrange (tuple, optional): Manual x-axis range as ``(min, max)`` in
+                minutes. ``None`` auto-calculates. Defaults to ``None``.
+
+        Returns:
+            matplotlib.figure.Figure
+
+        Examples:
+            # Basic sleep bout histogram
+            fig = df.plot_sleep_bouts(bin_size=5, max_bins=30)
+
+            # Faceted by genotype
+            fig = df.plot_sleep_bouts(facet_col='genotype', bin_size=5)
+
+            # Wake bouts instead
+            fig = df.plot_sleep_bouts(asleep=False)
+        """
+        facet_arg, facet_labels = self._check_lists(
+            facet_col, facet_arg, facet_labels
+        )
+
+        if facet_col is not None:
+            d_list = [self.xmv(facet_col, arg) for arg in facet_arg]
+        else:
+            d_list = [self.copy(deep=True)]
+            facet_labels = [""]
+
+        col_list = self._get_colours(d_list)
+
+        if figsize == (0, 0):
+            figsize = (2 * len(facet_labels) + 4, 5)
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        n_groups = len(d_list)
+        _bar_width = bar_width if bar_width is not None else 0.8 / n_groups
+        max_y = []
+        all_x = []
+
+        for i, (data, name, col) in enumerate(
+            zip(d_list, facet_labels, col_list)
+        ):
+            # Use a plain DataFrame for groupby().apply() to avoid a
+            # constructor bug in ethoscopy 2.2.0 with single-specimen data.
+            plain_df = pd.DataFrame(
+                data.reset_index().copy(deep=True)
+            )
+            bouts = plain_df.groupby("id", group_keys=False).apply(
+                partial(
+                    self._wrapped_bout_analysis,
+                    var_name=sleep_column,
+                    as_hist=True,
+                    bin_size=bin_size,
+                    max_bins=max_bins,
+                    time_immobile=time_immobile,
+                    asleep=asleep,
+                    t_column=t_column,
+                )
+            )
+
+            if len(bouts) < 2:
+                print(f"Group '{name}' has no values and cannot be plotted")
+                continue
+
+            # Aggregate across specimens: mean prob per bin
+            plot_gb = bouts.groupby("bins").agg(
+                mean=("prob", "mean"),
+                SD=("prob", "std"),
+                count=("prob", "count"),
+            )
+            plot_gb["SE"] = (1.96 * plot_gb["SD"]) / np.sqrt(plot_gb["count"])
+
+            x = plot_gb.index.to_numpy() / 60  # seconds → minutes
+            y = plot_gb["mean"].to_numpy()
+            se = plot_gb["SE"].to_numpy()
+            all_x.extend(x)
+            max_y.append(np.nanmax(y + se) + 0.02)
+
+            # Offset bars so groups are side-by-side
+            offset = (i - n_groups / 2 + 0.5) * _bar_width
+            ax.bar(
+                x + offset,
+                y,
+                width=_bar_width,
+                yerr=se,
+                color=col,
+                alpha=0.6,
+                label=name,
+                error_kw={"elinewidth": 1.5, "capsize": 2},
+            )
+
+        ax.set_xlabel("Bout duration (minutes)")
+        ax.set_ylabel("Proportion of total bouts")
+
+        if max_y:
+            ax.set_ylim(0, np.nanmax(max_y))
+        if all_x:
+            if xrange is not None:
+                ax.set_xlim(xrange)
+            else:
+                ax.set_xlim(time_immobile - _bar_width / 2, np.max(all_x) + bin_size + 0.5)
+
+        if facet_col is not None:
+            ax.legend(title=facet_col)
+
+        ax.set_title(title)
+
+        if grids:
+            ax.grid(axis="y", alpha=0.3)
+
+        plt.tight_layout()
+
+        return fig

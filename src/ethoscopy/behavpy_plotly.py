@@ -4160,3 +4160,162 @@ class behavpy_plotly(behavpy_draw):
             yshift=-30,
         )
         return fig
+
+    def plot_sleep_bouts(
+        self,
+        sleep_column="asleep",
+        facet_col=None,
+        facet_arg=None,
+        facet_labels=None,
+        bin_size=1,
+        max_bins=60,
+        time_immobile=5,
+        asleep=True,
+        title="",
+        t_column="t",
+        grids=False,
+        bar_width=None,
+        xrange=None,
+    ):
+        """
+        Generates a plotly histogram showing the distribution of sleep/wake bouts.
+
+        This method uses ``sleep_bout_analysis`` internally to generate the data,
+        then produces a plotly bar chart with faceting support.
+
+        Args:
+            sleep_column (str, optional): Column containing boolean sleep state data.
+                Defaults to ``'asleep'``.
+            facet_col (str, optional): Metadata column to facet by. Defaults to ``None``.
+            facet_arg (list, optional): Groups from *facet_col* to include. If ``None``,
+                all distinct groups are used. Defaults to ``None``.
+            facet_labels (list, optional): Display labels for facet groups. If ``None``,
+                labels from metadata are used. Defaults to ``None``.
+            bin_size (int, optional): Histogram bin width in minutes. Defaults to ``1``.
+            max_bins (int, optional): Maximum number of bins. Defaults to ``60``.
+            time_immobile (int, optional): Minimum bout duration in minutes to include
+                (standard 5-minute Drosophila sleep rule). Defaults to ``5``.
+            asleep (bool, optional): ``True`` to plot sleep bouts, ``False`` for wake
+                bouts. Defaults to ``True``.
+            title (str, optional): Plot title. Defaults to ``''``.
+            t_column (str, optional): Timestamp column name (seconds). Defaults to ``'t'``.
+            grids (bool, optional): Show grid lines. Defaults to ``False``.
+            bar_width (float, optional): Width of each bar in data-coordinate units
+                (minutes). ``None`` lets Plotly auto-size. Defaults to ``None``.
+            xrange (tuple, optional): Manual x-axis range as ``(min, max)`` in
+                minutes. ``None`` auto-calculates. Defaults to ``None``.
+
+        Returns:
+            plotly.graph_objects.Figure
+
+        Examples:
+            # Basic sleep bout histogram
+            fig = df.plot_sleep_bouts(bin_size=5, max_bins=30)
+
+            # Faceted by genotype
+            fig = df.plot_sleep_bouts(facet_col='genotype', bin_size=5)
+
+            # Wake bouts instead
+            fig = df.plot_sleep_bouts(asleep=False)
+        """
+        facet_arg, facet_labels = self._check_lists(
+            facet_col, facet_arg, facet_labels
+        )
+
+        if facet_col is not None:
+            d_list = [self.xmv(facet_col, arg) for arg in facet_arg]
+        else:
+            d_list = [self.copy(deep=True)]
+            facet_labels = [""]
+
+        col_list = self._get_colours(d_list)
+
+        fig = go.Figure()
+        max_y = []
+        all_x = []
+
+        for data, name, col in zip(d_list, facet_labels, col_list):
+            # Use a plain DataFrame for groupby().apply() to avoid a
+            # constructor bug in ethoscopy 2.2.0 with single-specimen data.
+            plain_df = pd.DataFrame(
+                data.reset_index().copy(deep=True)
+            )
+            bouts = plain_df.groupby("id", group_keys=False).apply(
+                partial(
+                    self._wrapped_bout_analysis,
+                    var_name=sleep_column,
+                    as_hist=True,
+                    bin_size=bin_size,
+                    max_bins=max_bins,
+                    time_immobile=time_immobile,
+                    asleep=asleep,
+                    t_column=t_column,
+                )
+            )
+
+            if len(bouts) < 2:
+                print(f"Group '{name}' has no values and cannot be plotted")
+                continue
+
+            # Aggregate across specimens: mean prob per bin
+            plot_gb = bouts.groupby("bins").agg(
+                mean=("prob", "mean"),
+                SD=("prob", "std"),
+                count=("prob", "count"),
+            )
+            plot_gb["SE"] = (1.96 * plot_gb["SD"]) / np.sqrt(plot_gb["count"])
+
+            x = plot_gb.index.to_numpy() / 60  # seconds → minutes
+            y = plot_gb["mean"].to_numpy()
+            all_x.extend(x)
+            max_y.append(round(np.max(y) + 0.1, 1))
+
+            trace = go.Bar(
+                showlegend=True,
+                name=name,
+                x=x,
+                y=y,
+                width=bar_width,
+                opacity=0.5,
+                marker=dict(color=col, line=dict(color=col)),
+                error_y=dict(
+                    array=plot_gb["SE"].tolist(), symmetric=True
+                ),
+            )
+            fig.add_trace(trace)
+
+        if len(fig.data) == 0:
+            raise ValueError(
+                "No data to plot. Check that your data has sufficient sleep/wake "
+                "bouts meeting the time_immobile threshold."
+            )
+
+        fig.update_layout(barmode="overlay", bargap=0)
+
+        self._plot_ylayout(
+            fig,
+            yrange=[0, np.nanmax(max_y)],
+            t0=0,
+            dtick=np.nanmax(max_y) / 5,
+            ylabel="Proportion of total Bouts",
+            title=title,
+            grid=grids,
+        )
+        # Use manual xrange if provided, otherwise auto-calculate with padding
+        if xrange is not None:
+            _xrange = list(xrange)
+            _t0 = xrange[0]
+        else:
+            _pad = bar_width / 2 if bar_width else bin_size / 2
+            _xrange = [time_immobile - _pad, np.max(all_x) + 0.5]
+            _t0 = time_immobile
+
+        self._plot_xlayout(
+            fig,
+            xrange=_xrange,
+            t0=_t0,
+            dtick=bin_size,
+            xlabel="Bouts (minutes)",
+        )
+
+        return fig
