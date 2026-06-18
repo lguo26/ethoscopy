@@ -688,24 +688,21 @@ class behavpy_core(pd.DataFrame):
                 # Already numeric
                 return float(val) if val is not None else 0
 
-        # Process data by specimen ID groups to avoid loading entire dataset in memory
-        result_list = []
-        for specimen_id, group in self.groupby(level="id"):
-            if specimen_id in day_dict:
-                shift_days = convert_baseline_value(day_dict[specimen_id])
-                if shift_days != 0:  # Only copy and modify if there's actually a shift
-                    group = group.copy()
-                    group[t_column] = group[t_column] + (
-                        shift_days * day_length_seconds
-                    )
-            result_list.append(group)
+        # Memory-optimised: vectorised shift instead of per-fly copy+concat
+        shift_map = {
+            specimen_id: convert_baseline_value(day_dict.get(specimen_id, 0))
+            * day_length_seconds
+            for specimen_id in self.index.unique()
+        }
 
-        # Concatenate results
-        if result_list:
-            new_data = pd.concat(result_list, axis=0)
-        else:
-            # Return empty DataFrame with same structure
-            new_data = self.iloc[:0].copy()
+        # Map each row's shift via its index value
+        tdf = self.reset_index()
+        shifts = tdf['id'].map(shift_map).fillna(0).values
+        tdf[t_column] = tdf[t_column] + shifts
+
+        new_data = tdf.set_index('id')
+        # Restore the index name that reset_index cleared
+        new_data.index.name = self.index.name or 'id'
 
         # Return new behavpy object
         return self.__class__(
@@ -3122,89 +3119,120 @@ class behavpy_core(pd.DataFrame):
         """
         import numpy as np
 
-        data = self.reset_index().copy()
-        data['id'] = data['id'].astype(str)
+        # --- Memory-optimised: avoid full-data copies ---
 
-        # Merge species from meta if available
-        meta = self.meta.reset_index()
-        if 'id' in meta.columns:
-            meta['id'] = meta['id'].astype(str)
+        # Build species lookup dict from meta (no merge needed)
+        species_map = {}
+        meta = self.meta
         if 'species' in meta.columns:
-            data = data.merge(meta[['id', 'species']], on='id', how='left')
+            species_map = meta['species'].to_dict()
 
-        # Extract machine name & ROI from id
-        if 'machine_name' not in data.columns:
-            mach_num = data['id'].str.extract(r'_(\d{3})\w+\|')[0]
-            data['machine_name'] = 'ETHOSCOPE_' + mach_num
-        data['roi'] = data['id'].str.extract(r'\|(\d+)$')[0]
-        data['fly_key'] = data['machine_name'] + '_ROI' + data['roi'].astype(str)
+        # Work with the index (fly IDs) and t/mov columns as numpy arrays
+        # to avoid converting id to str, merge, and per-fly DataFrame splits.
+        id_vals = self.index.values.astype(str)
+        t_vals = self[t_column].values.astype(np.float64)
+        mov_vals = self[mov_column].values.astype(np.float64)
+        n_rows = len(t_vals)
+
+        # Extract machine_name and roi from id strings
+        mach_nums = np.array([s.split('_')[-1].split('|')[0] for s in id_vals])
+        machine_names = np.char.add('ETHOSCOPE_', mach_nums)
+        rois = np.array([s.split('|')[-1] for s in id_vals])
+        fly_keys = np.char.add(machine_names, '_ROI')
+        fly_keys = np.char.add(fly_keys, rois)
+
+        # Get sort order by fly_key then t
+        sort_idx = np.lexsort((t_vals, fly_keys))
+        fly_keys_sorted = fly_keys[sort_idx]
+        t_sorted = t_vals[sort_idx]
+        id_sorted = id_vals[sort_idx]
+        mov_sorted = mov_vals[sort_idx]
+        machine_sorted = machine_names[sort_idx]
+        roi_sorted = rois[sort_idx]
+
+        # Find fly group boundaries
+        fly_changes = np.where(fly_keys_sorted[:-1] != fly_keys_sorted[1:])[0] + 1
+        fly_starts = np.concatenate([[0], fly_changes])
+        fly_ends = np.concatenate([fly_changes, [len(fly_keys_sorted)]])
 
         results = []
-        for fly_key, fly_data in data.groupby('fly_key', sort=False):
-            if len(fly_data) == 0:
+        time_window_s = 60 * 60 * time_window
+        resolution = max(1, min(resolution, time_window))
+        step = max(1, int(time_window_s / resolution))
+
+        for start, end in zip(fly_starts, fly_ends):
+            f_t = t_sorted[start:end]
+            f_mov = mov_sorted[start:end]
+            fly_id = id_sorted[start]
+            machine = machine_sorted[start]
+            roi = roi_sorted[start]
+            species = str(species_map.get(fly_id, 'unknown'))
+
+            if len(f_t) == 0:
                 continue
 
-            fly_data = fly_data.sort_values(t_column)
-            machine = fly_data['machine_name'].iloc[0]
-            roi = fly_data['roi'].iloc[0]
-            species = (fly_data['species'].iloc[0]
-                       if 'species' in fly_data.columns else 'unknown')
+            # Split into continuous segments (gap > 3600s = restart)
+            gaps = np.diff(f_t)
+            seg_breaks = np.where(gaps > 3600)[0]
 
-            # Split into continuous segments (gap > 1 h = restart)
-            t_vals = fly_data[t_column].values
-            gaps = np.diff(t_vals)
-            segment_breaks = np.where(gaps > 3600)[0]
-
-            if len(segment_breaks) == 0:
-                segments = [fly_data]
+            if len(seg_breaks) == 0:
+                seg_indices = [(0, len(f_t))]
             else:
-                segments = []
+                seg_indices = []
                 prev = 0
-                for brk in segment_breaks:
-                    segments.append(fly_data.iloc[prev:brk + 1])
+                for brk in seg_breaks:
+                    seg_indices.append((prev, brk + 1))
                     prev = brk + 1
-                segments.append(fly_data.iloc[prev:])
+                seg_indices.append((prev, len(f_t)))
 
-            first_segment = segments[0]
-            last_segment = segments[-1]
-            t_first = first_segment[t_column].min()
-            t_last = last_segment[t_column].max()
+            first_s, first_e = seg_indices[0]
+            last_s, last_e = seg_indices[-1]
+            t_first = f_t[first_s]
+            t_last = f_t[last_e - 1]
 
-            # Death detection only in LAST segment
-            death_time = self._wrapped_km_death_detect(
-                last_segment, t_column=t_column, mov_column=mov_column,
-                time_window=time_window, prop_immobile=prop_immobile,
-                resolution=resolution
-            )
+            # Death detection on LAST segment only (array-based)
+            seg_t = f_t[last_s:last_e]
+            seg_mov = f_mov[last_s:last_e]
+
+            death_time = None
+            t_min = seg_t[0]
+            t_max = seg_t[-1]
+            target_t = np.arange(int(t_min), int(t_max), step)
+
+            if len(target_t) > 0:
+                local_means = np.array([
+                    seg_mov[(seg_t >= i) & (seg_t < i + time_window_s)].mean()
+                    for i in target_t
+                ])
+                death_points = np.where(local_means <= prop_immobile)[0]
+                if len(death_points) > 0:
+                    first_dp = death_points[0]
+                    death_time = target_t[first_dp]
 
             if death_time is not None:
                 T_hours = (death_time - t_first) / 3600.0
                 E = 1
-                end_time = death_time
+                end_time_val = death_time
             else:
                 T_hours = (t_last - t_first) / 3600.0
                 E = 0
-                end_time = t_last
+                end_time_val = t_last
 
             results.append({
-                'id': first_segment['id'].iloc[0],
+                'id': fly_id,
                 'T': T_hours,
                 'E': E,
                 'species': species,
                 'machine_name': machine,
                 'roi': roi,
                 'start_time': t_first,
-                'end_time': end_time,
-                'n_segments': len(segments),
+                'end_time': end_time_val,
+                'n_segments': len(seg_indices),
             })
 
         surv_df = pd.DataFrame(results)
 
         if cumulative:
-            # Use end_time / 3600 directly (seconds → hours).
-            # If the user called df.baseline(column='baseline'), the t
-            # values are already shifted by baseline*24h — no extra
-            # offset needed.  Same time calc as plot_overtime.
             surv_df['T_cumulative'] = surv_df['end_time'] / 3600.0
 
         return surv_df
@@ -3260,36 +3288,39 @@ class behavpy_core(pd.DataFrame):
         if timepoints is None:
             timepoints = [0, 10, 50, 100, 150]
 
-        data = self.reset_index().copy()
-        data['id'] = data['id'].astype(str)
+        # Memory-optimised: use numpy arrays instead of copy+merge
+        id_vals = self.index.values.astype(str)
+        t_vals = self[t_column].values.astype(np.float64)
 
-        # Merge species from meta
-        meta = self.meta.reset_index()
-        if 'id' in meta.columns:
-            meta['id'] = meta['id'].astype(str)
-        if 'species' in meta.columns:
-            data = data.merge(meta[['id', 'species']], on='id', how='left')
+        # Species via dict lookup (no merge)
+        species_map = {}
+        if 'species' in self.meta.columns:
+            species_map = self.meta['species'].to_dict()
 
-        # Machine + ROI
-        if 'machine_name' not in data.columns:
-            data['machine_name'] = 'ETHOSCOPE_' + data['id'].str.extract(r'_(\d{3})\w+\|')[0]
-        data['roi'] = data['id'].str.extract(r'\|(\d+)$')[0]
-        data['fly_key'] = data['machine_name'] + '_ROI' + data['roi'].astype(str)
+        # Build fly_key directly from id strings
+        mach_nums = np.array([s.split('_')[-1].split('|')[0] for s in id_vals])
+        machine_names = np.char.add('ETHOSCOPE_', mach_nums)
+        rois = np.array([s.split('|')[-1] for s in id_vals])
+        fly_keys = np.char.add(np.char.add(machine_names, '_ROI'), rois)
 
-        t_min = data[t_column].min()
-        species_list = sorted(data['species'].dropna().unique())
+        species_vals = np.array([str(species_map.get(i, 'unknown')) for i in id_vals])
+
+        t_min = t_vals.min()
+        species_list = sorted(set(species_vals))
 
         result = {}
         max_per_species = {sp: 0 for sp in species_list}
 
         for tp in timepoints:
             tp_sec = t_min + tp * 3600
-            active = data[(data[t_column] >= tp_sec) & (data[t_column] < tp_sec + 3600)]
-            flies = active[['fly_key', 'species']].drop_duplicates()
+            mask = (t_vals >= tp_sec) & (t_vals < tp_sec + 3600)
+
+            # Unique fly_key + species pairs in window
+            pairs = set(zip(fly_keys[mask], species_vals[mask]))
 
             counts = {}
             for sp in species_list:
-                n = len(flies[flies['species'] == sp])
+                n = sum(1 for _, s in pairs if s == sp)
                 counts[sp] = n
                 max_per_species[sp] = max(max_per_species[sp], n)
             result[f't={tp}h'] = counts
