@@ -3098,20 +3098,30 @@ class behavpy_core(pd.DataFrame):
 
     def _build_km_survival_table(self, t_column='t', mov_column='moving',
                                   time_window=24, prop_immobile=0.01,
-                                  resolution=24, cumulative=False):
+                                  resolution=24, cumulative=False,
+                                  zero_run_hours=None,
+                                  second_mov_column=None):
         """
         Build a per-fly survival table with ROI-based deduplication.
 
         Flies are identified by (machine_name, ROI) rather than by ID,
         so the same fly re-detected after a machine restart is tracked
-        as one individual.  Death is detected via sustained immobility
-        and only checked in the fly's *last* tracking segment.
+        as one individual.  Death is detected via three methods (earliest wins):
+          1. Sliding-window mean immobility (existing method)
+          2. Longest contiguous zero-run (optional, if zero_run_hours is set)
+          3. Second movement column check (optional, if second_mov_column is set)
 
         Parameters
         ----------
         cumulative : bool
             If True, T is computed as continuous hours from the earliest
             data point across all flies.  Adds a 'T_cumulative' column.
+        zero_run_hours : float or None
+            If set, also detect death when the longest contiguous run of
+            zero movement exceeds this many hours (e.g. 12).
+        second_mov_column : str or None
+            Optional second movement column. Death is declared if EITHER
+            column indicates death.
 
         Returns
         -------
@@ -3134,6 +3144,11 @@ class behavpy_core(pd.DataFrame):
         id_vals = self.index.values.astype(str)
         t_vals = self[t_column].values.astype(np.float64)
         mov_vals = self[mov_column].values.astype(np.float64)
+        # Second movement column (optional)
+        if second_mov_column and second_mov_column in self.columns:
+            mov2_vals = self[second_mov_column].values.astype(np.float64)
+        else:
+            mov2_vals = None
         n_rows = len(t_vals)
 
         # Extract machine_name and roi from id strings
@@ -3149,6 +3164,7 @@ class behavpy_core(pd.DataFrame):
         t_sorted = t_vals[sort_idx]
         id_sorted = id_vals[sort_idx]
         mov_sorted = mov_vals[sort_idx]
+        mov2_sorted = mov2_vals[sort_idx] if mov2_vals is not None else None
         machine_sorted = machine_names[sort_idx]
         roi_sorted = rois[sort_idx]
 
@@ -3161,10 +3177,56 @@ class behavpy_core(pd.DataFrame):
         time_window_s = 60 * 60 * time_window
         resolution = max(1, min(resolution, time_window))
         step = max(1, int(time_window_s / resolution))
+        min_pts = (time_window_s / 10.0) * 0.75
+
+        def _detect_in_segment(seg_t, seg_mov):
+            """Returns earliest death_time in segment, or None."""
+            best = None
+            t_min, t_max = seg_t[0], seg_t[-1]
+            target_t = np.arange(int(t_min), int(t_max), step)
+
+            if len(target_t) == 0:
+                return None
+
+            # Method 1: sliding-window mean
+            local_means = np.full(len(target_t), np.nan)
+            for idx, i in enumerate(target_t):
+                mask = (seg_t >= i) & (seg_t < i + time_window_s)
+                n_pts = mask.sum()
+                if n_pts >= min_pts:
+                    local_means[idx] = seg_mov[mask].mean()
+            death_points = np.where(local_means <= prop_immobile)[0]
+            if len(death_points) > 0:
+                best = target_t[death_points[0]]
+
+            # Method 2: zero-run detection
+            if zero_run_hours is not None and zero_run_hours > 0:
+                zero_run_s = zero_run_hours * 3600.0
+                seg_mov_clean = np.nan_to_num(seg_mov, nan=1.0)
+                is_zero = (seg_mov_clean == 0)
+
+                shifted = np.roll(is_zero, 1)
+                shifted[0] = False
+                run_starts = np.where(is_zero & ~shifted)[0]
+
+                shifted_end = np.roll(is_zero, -1)
+                shifted_end[-1] = False
+                run_ends = np.where(is_zero & ~shifted_end)[0] + 1
+
+                for rs, re in zip(run_starts, run_ends):
+                    if rs < re and re <= len(seg_t):
+                        dur = seg_t[re - 1] - seg_t[rs]
+                        if dur >= zero_run_s:
+                            zr_death = seg_t[rs]
+                            if best is None or zr_death < best:
+                                best = zr_death
+
+            return best
 
         for start, end in zip(fly_starts, fly_ends):
             f_t = t_sorted[start:end]
             f_mov = mov_sorted[start:end]
+            f_mov2 = mov2_sorted[start:end] if mov2_sorted is not None else None
             fly_id = id_sorted[start]
             machine = machine_sorted[start]
             roi = roi_sorted[start]
@@ -3193,38 +3255,23 @@ class behavpy_core(pd.DataFrame):
             t_last = f_t[last_e - 1]
 
             # Death detection on ALL segments — use the earliest death
-            # (flies re-recorded across weeks may appear dead from the start
-            #  of later segments, so checking only the last segment misses
-            #  the true death in an earlier segment)
             death_time = None
             for seg_idx in range(len(seg_indices)):
                 seg_s, seg_e = seg_indices[seg_idx]
                 seg_t = f_t[seg_s:seg_e]
                 seg_mov = f_mov[seg_s:seg_e]
 
-                t_min = seg_t[0]
-                t_max = seg_t[-1]
-                target_t = np.arange(int(t_min), int(t_max), step)
+                # Check primary column
+                dt = _detect_in_segment(seg_t, seg_mov)
+                if dt is not None and (death_time is None or dt < death_time):
+                    death_time = dt
 
-                if len(target_t) > 0:
-                    # Evaluate each sliding window, but skip those at segment
-                    # boundaries that have too little data (e.g. machine stops).
-                    # Without this, a brief nap in the last few data points of
-                    # a short segment can trigger a false death.
-                    local_means = np.full(len(target_t), np.nan)
-                    for idx, i in enumerate(target_t):
-                        mask = (seg_t >= i) & (seg_t < i + time_window_s)
-                        n_pts = mask.sum()
-                        # Require ≥ 75% of expected data points (18h out of 24h)
-                        min_pts = (time_window_s / 10.0) * 0.75
-                        if n_pts >= min_pts:
-                            local_means[idx] = seg_mov[mask].mean()
-                    death_points = np.where(local_means <= prop_immobile)[0]
-                    if len(death_points) > 0:
-                        first_dp = death_points[0]
-                        seg_death_time = target_t[first_dp]
-                        if death_time is None or seg_death_time < death_time:
-                            death_time = seg_death_time
+                # Check secondary movement column (optional)
+                if f_mov2 is not None:
+                    seg_mov2 = f_mov2[seg_s:seg_e]
+                    dt2 = _detect_in_segment(seg_t, seg_mov2)
+                    if dt2 is not None and (death_time is None or dt2 < death_time):
+                        death_time = dt2
 
             if death_time is not None:
                 T_hours = (death_time - t_first) / 3600.0
@@ -3256,7 +3303,8 @@ class behavpy_core(pd.DataFrame):
 
     def km_death_table(self, t_column='t', mov_column='moving',
                        time_window=24, prop_immobile=0.01, resolution=24,
-                       cumulative=False, time_unit='hours'):
+                       cumulative=False, time_unit='hours',
+                       zero_run_hours=None, second_mov_column=None):
         """
         Return a DataFrame of dead flies with genotype, machine, ROI, and
         time of death.
@@ -3265,6 +3313,11 @@ class behavpy_core(pd.DataFrame):
         ----------
         time_unit : str
             'hours' or 'days'.
+        zero_run_hours : float or None
+            If set, also detect death via longest zero-movement run >= this
+            many hours.
+        second_mov_column : str or None
+            Optional second movement column for combined detection.
 
         Returns
         -------
@@ -3273,7 +3326,9 @@ class behavpy_core(pd.DataFrame):
         surv = self._build_km_survival_table(
             t_column=t_column, mov_column=mov_column,
             time_window=time_window, prop_immobile=prop_immobile,
-            resolution=resolution, cumulative=cumulative
+            resolution=resolution, cumulative=cumulative,
+            zero_run_hours=zero_run_hours,
+            second_mov_column=second_mov_column,
         )
         time_col = 'T_cumulative' if cumulative and 'T_cumulative' in surv.columns else 'T'
         div = 24.0 if time_unit == 'days' else 1.0

@@ -1553,6 +1553,8 @@ class behavpy_plotly(behavpy_draw):
         prop_immobile: float = 0.01,
         resolution: int = 24,
         show_ci: bool = True,
+        zero_run_hours: None | float = None,
+        second_mov_column: None | str = None,
     ):
         """
         Kaplan-Meier survival plot (plotly) with ROI-based deduplication.
@@ -1569,7 +1571,9 @@ class behavpy_plotly(behavpy_draw):
         surv_df = self._build_km_survival_table(
             t_column=t_column, mov_column=mov_column,
             time_window=time_window, prop_immobile=prop_immobile,
-            resolution=resolution
+            resolution=resolution,
+            zero_run_hours=zero_run_hours,
+            second_mov_column=second_mov_column,
         )
 
         if facet_col and facet_col in surv_df.columns:

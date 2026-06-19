@@ -1261,6 +1261,8 @@ class behavpy_seaborn(behavpy_draw):
         censoring_marks: bool = False,
         cumulative: bool = False,
         time_unit: str = 'hours',
+        zero_run_hours: None | float = None,
+        second_mov_column: None | str = None,
     ):
         """
         Kaplan-Meier survival plot with ROI-based deduplication.
@@ -1294,6 +1296,12 @@ class behavpy_seaborn(behavpy_draw):
         grid : bool
         censoring_marks : bool
             Show tick marks for censored observations.
+        zero_run_hours : float or None
+            If set, also detect death via longest zero-movement run ≥ this
+            many hours (e.g. 12).
+        second_mov_column : str or None
+            Optional second movement column for combined detection.
+            Death is declared if EITHER column indicates death.
 
         Returns
         -------
@@ -1304,7 +1312,9 @@ class behavpy_seaborn(behavpy_draw):
         surv_df = self._build_km_survival_table(
             t_column=t_column, mov_column=mov_column,
             time_window=time_window, prop_immobile=prop_immobile,
-            resolution=resolution, cumulative=cumulative
+            resolution=resolution, cumulative=cumulative,
+            zero_run_hours=zero_run_hours,
+            second_mov_column=second_mov_column,
         )
 
         # Use cumulative time if available
@@ -1411,9 +1421,14 @@ class behavpy_seaborn(behavpy_draw):
 
         n_dead = surv_df['E'].sum()
         n_total = len(surv_df)
+        anno_parts = [f'{n_dead}/{n_total} deaths',
+                      f'tw={time_window}h pi={prop_immobile}']
+        if zero_run_hours:
+            anno_parts.append(f'zr={zero_run_hours}h')
+        if second_mov_column:
+            anno_parts.append(f'+{second_mov_column}')
         ax.text(0.99, 0.02,
-                f'{n_dead}/{n_total} deaths | '
-                f'tw={time_window}h pi={prop_immobile}',
+                ' | '.join(anno_parts),
                 transform=ax.transAxes, fontsize=7,
                 ha='right', va='bottom', color='gray', style='italic')
 
